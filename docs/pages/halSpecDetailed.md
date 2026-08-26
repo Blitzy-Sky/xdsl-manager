@@ -1835,8 +1835,8 @@ So a caller asking for a 2 s timeout gets approximately 10 s, and a caller askin
 the requested bound was not honoured. Any caller-side deadline shorter than about ten seconds cannot
 be enforced through this interface, and a document, test or design that assumes one is wrong.
 
-**One framing state escapes the deadline altogether.** The tick counter is decremented only by
-`request_tracking_cb` (`json_hal_client.c:541`), which runs only from the transport's idle callback,
+**One framing state escapes the deadline altogether.** The tick counter is decremented only by the
+transport's internal tracking callback (`json_hal_client.c:541`), which runs only from its idle callback,
 and that callback is skipped while the reassembly accumulator is non-empty (`tcp_client.c:251`); the
 caller's own wait is an untimed `pthread_cond_wait` (`json_hal_client.c:683`). So **any read that
 comes back full** — the transport accumulates it, leaves the receive step without parsing, and

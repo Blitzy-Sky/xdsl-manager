@@ -364,10 +364,10 @@ value that applies:
 
 **The deadline is approximate, and it is an upper bound rather than a guaranteed minimum wait.**
 `pthread_cond_wait()` on the reply (`json_hal_client.c:683`) carries no timeout of its own; the wait
-is ended by a timer callback internal to the transport library's source — `static int
-request_tracking_cb()`, declared at `json_hal_client.c:141` and defined at `:535`. **That name is a
-source-internal implementation detail, not part of the client API**: it appears in no installed
-header, so a caller can neither call it, link against it nor replace it, and it is named here only
+is ended by a timer callback internal to the transport library's source, declared `static` at
+`json_hal_client.c:141` and defined at `:535`. **That callback is a source-internal implementation
+detail, not part of the client API**: it appears in no installed header, so a caller can neither call
+it, link against it nor replace it, and it is cited by location here only
 because it is what makes the deadline behave as described below. It decrements every pending
 request's ticker by one and signals the waiter when a ticker reaches zero. It runs once per pass of
 the client's socket loop, reached through the library's equally internal idle callback (`:227-232`,
@@ -422,8 +422,8 @@ paragraphs after the table answer it.
 **The schema states what a well-formed message looks like; the pinned transport does not check
 inbound messages against it.** This is the single most consequential difference between the contract
 and its carrier, because a caller — or a test — that expects malformed input to come back as a clean
-rejection is expecting something no code here performs. The server's dispatcher,
-`message_process_cb()` (`json_hal_server.c:317-593`), behaves as follows on a request:
+rejection is expecting something no code here performs. The server's internal request dispatcher
+(`json_hal_server.c:317-593`) behaves as follows on a request:
 
 | Inbound request | What the pinned server does | What the caller sees |
 | --- | --- | --- |
@@ -689,6 +689,26 @@ The transport's own JSON dependency needs both halves of its answer, because eit
 
 A caller should read `0.11` as the floor the library claims to support and `0.15-20200726` as the
 revision it is known to build and pass against.
+
+Neither figure is a security recommendation, and the floor in particular is an attribution of what
+the library declares rather than guidance on what to build against:
+
+- **Unpatched upstream `json-c 0.11` must not be deployed in production.** It is affected by
+  `CVE-2013-6370`, a buffer overflow; `CVE-2013-6371`, a hash-collision denial of service; and
+  `CVE-2020-12762`, an integer overflow leading to an out-of-bounds write, scored CVSS v3.1 7.8 HIGH
+  (`AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H`) by NVD and fixed in `json-c 0.15`. That `AV:L` vector is
+  consistent with how this interface is reached: the transport is loopback-only, with `SERVER_HOST`
+  defined as `127.0.0.1` [`tcp_client.h:33`], applied at [`json_hal_client.c:207`], and the server
+  binding `127.0.0.1` [`tcp_server.c:144-146`]. The exposure is therefore a hostile or
+  malfunctioning local peer on the loopback socket, not a remote network attacker. It is nonetheless
+  concrete rather than theoretical, because the dependency sits on the peer-facing parse path: the transport hands bytes read off the HAL socket to
+  `json_tokener_parse_ex()` and `json_tokener_parse()` before any of the validation this
+  specification describes takes place, so a malformed or hostile message reaches the parser first.
+- **A production deployment links a patched build.** That is either a distribution build of `json-c`
+  carrying backports of those three fixes, or a maintained upstream release at `0.15` or later —
+  `0.15` is where the out-of-bounds write was corrected, and current upstream is `0.19`. A vendor
+  that must build against `0.11` for compatibility with an existing platform treats the backport of
+  those fixes as a release condition, not as an optional hardening step.
 
 No toolchain version is specified beyond the above: `configure.ac` requires a C and a C++ compiler
 via `AC_PROG_CC` and `AC_PROG_CXX` but sets no minimum for either.
