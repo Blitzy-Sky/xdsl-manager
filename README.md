@@ -27,12 +27,13 @@ The transport both documents cite as their authority, rather than restating it, 
 `json-hal-library`, pinned in the containing workspace at
 [rdkcentral/json-hal-library@`86a0a300`](https://github.com/rdkcentral/json-hal-library/tree/86a0a300b976f8e3295064af8fb3fd1c793c9e64).
 
-**Building the documentation.** `cd docs && ./generate_docs.sh` clones the pinned `hal-doxygen`
-generator into `docs/build` and writes the generated site to `docs/output/html`. Both directories
-are generated artefacts, are excluded from version control, and are never committed. Diagrams on
-these pages are fenced Mermaid, which renders on GitHub; it does not render in the generated
-Doxygen HTML, which is a known and accepted limitation of the generator rather than a defect in
-the pages.
+**Building the documentation.** `cd docs && ./generate_docs.sh` clones the `hal-doxygen` generator —
+pinned to tag `1.2.0` by [`docs/generate_docs.sh`](docs/generate_docs.sh) — into `docs/build` and
+writes the generated site to `docs/output/html`. Both directories are generated artefacts and are
+excluded from version control by [`docs/.gitignore`](docs/.gitignore), which lists `node_modules`,
+`output` and `build`, so neither is ever committed. Diagrams on these pages are fenced Mermaid,
+which renders on GitHub; it does not render in the generated Doxygen HTML, which is a known and
+accepted limitation of the generator rather than a defect in the pages.
 
 **A note on sourcing.** Every factual claim on this page names the file that establishes it. Where
 this repository establishes nothing, the text says so rather than filling the gap with a plausible
@@ -116,10 +117,12 @@ line technology; where a description and the schema disagree, the schema is the 
 | `Device.ATM` | 45 | ATM links, QoS and link statistics |
 | `Device.PTM` | 22 | PTM links and link statistics |
 
-Those 369 parameter definitions cover **512 logical TR-181 paths**, because 20 of them use regular
-expression alternation and so match more than one path each. Alongside them the schema defines 25
-object definitions and eleven enumerated value lists. Every definition, with its expansion where it
-alternates, its type, its constraint and its access, is set out in
+Those 369 parameter definitions bind **512 definition-to-path pairs**, because 20 of them use
+regular expression alternation and so match more than one path each. The pairs resolve to **511
+distinct logical paths**, because one path is claimed by two definitions — a schema defect recorded
+in the detailed reference. Alongside them the schema defines 25 object definitions and eleven
+enumerated value lists. Every definition, with its expansion where it alternates, its type, its
+constraint and its access, is set out in
 [`docs/pages/halSpecDetailed.md`](docs/pages/halSpecDetailed.md).
 
 ## Repository layout
@@ -183,8 +186,10 @@ independent of the component build and adds nothing to these files.
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) gives the contribution route: fork the repository, send a
   pull request, and sign the RDK Contributor License Agreement before the code is accepted. It
-  states no branch-naming convention; changes made under the HAL documentation effort use the branch
-  and pull request name `feature/hal_documentation_project`.
+  states no branch-naming convention. The branch carrying the HAL documentation work in this
+  repository is named `feature/hal_documentation_project`; that name is the only part of the route
+  this repository evidences, and nothing here records whether a pull request has been opened,
+  reviewed or merged.
 - `.github/CODEOWNERS` makes `@rdkcentral/wanmanager-maintainers` the reviewer for every path in
   this repository.
 - [`CHANGELOG.md`](CHANGELOG.md) records the release history. The current release tag is `v1.6.0`,

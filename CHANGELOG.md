@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 repository adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Every release heading below names a tag that exists in this repository, and its date is the date of
-the tag. A `git describe --tags` string such as `v1.6.0-7-g7285c2d` denotes a number of commits past
-a tag rather than a release, so it never appears here as a release heading. Work that is not yet
-tagged is listed under `Unreleased`.
+the tag. A `git describe --tags` string, which appends a commit count and an abbreviated hash to the
+nearest tag, denotes a position a number of commits past a tag rather than a release, so no such
+string appears here as a release heading. Work that is not yet tagged is listed under `Unreleased`.
 
 Two version numbers travel with this repository, and they are not the same kind of thing:
 
@@ -21,16 +21,44 @@ Two version numbers travel with this repository, and they are not the same kind 
 
 ## Unreleased
 
-Changes that are merged but not yet part of a tagged release
-([compare with v1.6.0](https://github.com/rdkcentral/xdsl-manager/compare/v1.6.0...HEAD)).
+Changes that are merged but not yet part of a tagged release. They cover the commits after the
+`v1.6.0` tag; run `git log v1.6.0..` in a checkout of this repository to list them.
+
+All of it is documentation. No functional change was made: no schema, fixture, configuration file,
+data model, source file or build file was modified, and the JSON HAL contract is unchanged.
 
 ### Added
 
-- `docs/pages/CHANGELOG.md` - a symlink to this file, so the repository's release history renders
+- `docs/pages/halSpec.md` - the xDSL HAL interface specification. It covers the architecture and the
+  component runtime execution requirements, the non-functional requirements, and the interface API
+  documentation including the action vocabulary, the object tree and the protocol contract. The
+  repository had no HAL documentation before this entry.
+- `docs/pages/halSpecDetailed.md` - the per-parameter reference for the JSON HAL, which is to
+  `hal_schema/xdsl_hal_schema.json` what inline Doxygen is to a C header. It documents all 369
+  parameter definitions with their type, constraint, access and derived meaning, expands the 20
+  definitions that use pattern alternation so every logical path is covered, and adds the object
+  index, the enumeration appendix, one worked message exchange per protocol workflow, the error and
+  event models, and the known contract defects.
+- `docs/generate_docs.sh` - the documentation build entry point, pinning the `hal-doxygen` generator
+  to tag `1.2.0` and building under the project name `RDK-B xDSL HAL`.
+- `docs/.gitignore` - excludes the generator clone and the generated site, `build` and `output`,
+  together with `node_modules`, from version control.
+- `docs/pages/CHANGELOG.md`, `docs/pages/CONTRIBUTING.md`, `docs/pages/COPYING.md`,
+  `docs/pages/LICENSE.md` and `docs/pages/NOTICE.md` - symlinks to the corresponding files at the
+  repository root, so the release history, the contribution route and the legal texts render
   alongside the HAL documentation in the generated Doxygen site.
 - This `CHANGELOG.md`, the release-history record for the repository and the source for the
   `Version History` topic of the HAL specification. The repository had no changelog before this
   entry.
+
+### Changed
+
+- `README.md` - replaced the single-line stub with a manager overview: what the component is, the
+  JSON HAL contract it speaks and the five values that fix that contract on a device, the four
+  TR-181 families the schema exposes, the repository layout, the four shipped example messages that
+  cannot be used as they stand, and what the build files do and do not establish. It links to both
+  documentation pages and remains a regular file rather than a symlink, because this repository's
+  landing page is a manager overview and not a HAL specification.
 
 ## Releases before this file
 
