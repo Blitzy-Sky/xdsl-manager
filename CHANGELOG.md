@@ -5,15 +5,15 @@ All notable changes to `xdsl-manager` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 repository adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Every release heading below names a tag that exists in this repository, and its date is the date of
+Every release recorded below names a tag that exists in this repository, and its date is the date of
 the tag. A `git describe --tags` string, which appends a commit count and an abbreviated hash to the
 nearest tag, denotes a position a number of commits past a tag rather than a release, so no such
-string appears here as a release heading. Work that is not yet tagged is listed under `Unreleased`.
+string is recorded here as a release. Work that is not yet tagged is listed under `Unreleased`.
 
 Two version numbers travel with this repository, and they are not the same kind of thing:
 
-- **Release tag** - the point in this repository's history that a consumer checks out, recorded as
-  the release headings in this file. The current tag is **v1.6.0**.
+- **Release tag** - the point in this repository's history that a consumer checks out, recorded in
+  the release table under `Releases before this file`. The current tag is **v1.6.0**.
 - **HAL schema version** - the version of the JSON HAL contract itself, carried by the
   `schemaVersion` definition in `hal_schema/xdsl_hal_schema.json` as the constant **0.0.1**. The
   schema states that this value must not be modified, because HAL operation depends on the client
@@ -29,11 +29,11 @@ data model, source file or build file was modified, and the JSON HAL contract is
 
 ### Added
 
-- `docs/pages/halSpec.md` - the xDSL HAL interface specification. It covers the architecture and the
+- [docs/pages/halSpec.md](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/docs/pages/halSpec.md) - the xDSL HAL interface specification. It covers the architecture and the
   component runtime execution requirements, the non-functional requirements, and the interface API
   documentation including the action vocabulary, the object tree and the protocol contract. The
   repository had no HAL documentation before this entry.
-- `docs/pages/halSpecDetailed.md` - the per-parameter reference for the JSON HAL, which is to
+- [docs/pages/halSpecDetailed.md](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/docs/pages/halSpecDetailed.md) - the per-parameter reference for the JSON HAL, which is to
   `hal_schema/xdsl_hal_schema.json` what inline Doxygen is to a C header. It documents all 369
   parameter definitions with their type, constraint, access and derived meaning, expands the 20
   definitions that use pattern alternation so every logical path is covered, and adds the object
@@ -43,22 +43,22 @@ data model, source file or build file was modified, and the JSON HAL contract is
   to tag `1.2.0` and building under the project name `RDK-B xDSL HAL`.
 - `docs/.gitignore` - excludes the generator clone and the generated site, `build` and `output`,
   together with `node_modules`, from version control.
-- `docs/pages/CHANGELOG.md`, `docs/pages/CONTRIBUTING.md`, `docs/pages/COPYING.md`,
-  `docs/pages/LICENSE.md` and `docs/pages/NOTICE.md` - symlinks to the corresponding files at the
-  repository root, so the release history, the contribution route and the legal texts render
-  alongside the HAL documentation in the generated Doxygen site.
-- This `CHANGELOG.md`, the release-history record for the repository and the source for the
+- Five symlinks under `docs/pages/` - `CHANGELOG`, `CONTRIBUTING`, `COPYING`, `LICENSE` and `NOTICE`,
+  each carrying a `.md` suffix - pointing at the corresponding files at the repository root, so the
+  release history, the contribution route and the legal texts render alongside the HAL documentation in
+  the generated Doxygen site.
+- This changelog, the release-history record for the repository and the source for the
   `Version History` topic of the HAL specification. The repository had no changelog before this
   entry.
 
 ### Changed
 
-- `README.md` - replaced the single-line stub with a manager overview: what the component is, the
-  JSON HAL contract it speaks and the five values that fix that contract on a device, the four
-  TR-181 families the schema exposes, the repository layout, the four shipped example messages that
-  cannot be used as they stand, and what the build files do and do not establish. It links to both
-  documentation pages and remains a regular file rather than a symlink, because this repository's
-  landing page is a manager overview and not a HAL specification.
+- The repository README - replaced the single-line stub with a manager overview: what the component
+  is, the JSON HAL contract it speaks and the five values that fix that contract on a device, the
+  four TR-181 families the schema exposes, the repository layout, the four shipped example messages
+  that cannot be used as they stand, and what the build files do and do not establish. It links to
+  both documentation pages and remains a regular file rather than a symlink, because this
+  repository's landing page is a manager overview and not a HAL specification.
 
 ## Releases before this file
 
@@ -80,4 +80,4 @@ commit range the tag closes.
 The repository additionally carries the release-candidate tags `RC1.6.0a` (2025-08-19), `RC1.5.0a`
 (2025-07-03), `RC1.4.0a` (2025-03-18), `RC1.3.0a` (2025-01-28), `RC1.2.0a` (2024-11-13), `RC1.1.0b`
 (2024-10-18) and `RC1.1.0` (2024-09-24). These are pre-release markers rather than releases, so they
-are listed here for completeness and are not release headings.
+are named here for completeness and are not rows in the table above.

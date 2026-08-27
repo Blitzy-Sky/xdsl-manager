@@ -16,7 +16,7 @@ carries two of them; the other two are recorded where a caller needs them.
 | HAL schema version | `0.0.1` | **Variability Management** |
 | Build version string | `v1.6.0-<n>-g<sha>` | Passed to the generator, never a release |
 
-The release this document describes is the tag **`v1.6.0`**. Seven `v*` tags exist — `v1.0.0`
+The release this document describes is the tag <b>`v1.6.0`</b>. Seven `v*` tags exist — `v1.0.0`
 through `v1.6.0` — alongside seven release-candidate tags (`RC1.1.0`, `RC1.1.0b`, `RC1.2.0a`,
 `RC1.3.0a`, `RC1.4.0a`, `RC1.5.0a`, `RC1.6.0a`), which mark pre-releases rather than releases.
 
@@ -26,8 +26,8 @@ The fourth identity is the one most easily mistaken for a version. `docs/generat
 hash. A string with that suffix denotes a point *past* `v1.6.0` and is not a release version. Its
 value changes with every commit, so it is deliberately not reproduced here.
 
-Derived from the repository's `CHANGELOG.md`, which is rendered alongside this document as
-`docs/pages/CHANGELOG.md`, and from this repository's tags.
+Derived from the repository's [CHANGELOG.md](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/CHANGELOG.md), which is symlinked into this folder and so
+renders alongside this document in the generated site, and from this repository's tags.
 
 ## Acronyms
 
@@ -39,7 +39,7 @@ Derived from the repository's `CHANGELOG.md`, which is rendered alongside this d
 - `FAST` \- ITU-T G.9700/G.9701, marketed as G.fast
 - `ATM` \- Asynchronous Transfer Mode
 - `PTM` \- Packet Transfer Mode
-- `TR-181` \- the Broadband Forum `Device:` data model; the model this documentation cites is `Device:2.13`, published as release `tr-181-2-13-0` and identified in [`halSpecDetailed.md`](halSpecDetailed.md), which records the comparison against versions 2.11, 2.12, 2.13, 2.15 and 2.21 that selected it
+- `TR-181` \- the Broadband Forum `Device:` data model; the model this documentation cites is `Device:2.13`, published as release `tr-181-2-13-0` and identified in [halSpecDetailed.md](halSpecDetailed.md), which records the comparison against versions 2.11, 2.12, 2.13, 2.15 and 2.21 that selected it
 - `DML` \- Data Model Layer, the RDK-B code that backs TR-181 parameters
 - `JSON` \- JavaScript Object Notation
 - `TCP` \- Transmission Control Protocol
@@ -53,7 +53,7 @@ The xDSL HAL is the contract between the RDK-B middleware stack and a vendor's D
 It differs from most RDK-B HALs in one structural respect that shapes everything else in this
 document: **the contract is a JSON schema carried over a TCP socket, not a C header linked into the
 caller.** That is why there is no `rdkb-halif-xdsl` repository — the interface definition is
-[`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json), and the rest of this
+[`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json), and the rest of this
 repository is the manager middleware in front of it.
 
 ```mermaid
@@ -71,6 +71,39 @@ flowchart TD
     Srv <--> Drv
 ```
 
+Every diagram in this document is authored as a fenced `mermaid` block. Such blocks render as
+diagrams on GitHub, which is the primary surface for a developer reading this repository. The
+documentation generator used by this repository does **not** render them; it displays their source
+text instead. That limitation is stated here rather than worked around, because the only available
+workaround would fix the generated site at the cost of the surface most readers actually use.
+
+**Three further limitations of the generated site, for the same reason.** Each was measured against
+the site this repository's `docs/generate_docs.sh` produces, and each originates in the generator's
+own page template and emitted navigation assets rather than in this document. Read this document on
+GitHub where any of them matters.
+
+- **The generated site does not adapt to a narrow viewport.** Its navigation pane is a fixed 500
+  pixels wide plus a 6-pixel splitter and does not shrink, so at a 1280-pixel viewport 774 pixels are
+  left for content, and below roughly 768 pixels the content column has no usable width at all. The
+  same content reflows normally on GitHub.
+- **Wide tables scroll inside the content column rather than reflowing.** The generator's table style
+  sets no wrapping rule, so a long unbroken identifier or pattern widens its table beyond the column
+  and is reached by a horizontal scrollbar. What could be fixed from this side has been: the alternating
+  `name` patterns and the two long `value` patterns are expanded in their own sections of
+  [halSpecDetailed.md](halSpecDetailed.md) rather than quoted inline, which cut the widest unbroken run
+  in any table from 1,711 rendered pixels to 607. The residual width comes from ordinary `TR-181`
+  identifiers, which cannot be shortened.
+- **The generated page does not declare its language, and renders in limited-quirks mode.** The root
+  element carries an unsubstituted template placeholder in place of a language code, so assistive
+  technology cannot determine the document language, and the transitional doctype the generator emits
+  puts the browser into limited-quirks layout.
+
+These are recorded rather than repaired because the files that produce them are not part of this
+repository: the generator is cloned at build time into `docs/build`, which `docs/.gitignore` excludes,
+and the documentation plan for this work places the generator and the Doxygen toolchain out of scope.
+Changing them would alter the generated output of every `RDK-B` HAL repository that uses the same
+generator, which is a separate change with its own compatibility analysis.
+
 `RdkXdslManager` is the owning middleware service for this interface, so a caller integrating
 against the xDSL HAL is normally working inside that manager rather than calling the socket
 directly. The manager exposes the vendor's DSL state upwards as TR-181 parameters and translates
@@ -78,7 +111,7 @@ each read and write into a JSON message exchange with the vendor's server.
 
 Because the interface is a schema rather than a header, there is no inline Doxygen to carry
 per-parameter detail. That detail lives in a companion document,
-[`halSpecDetailed.md`](halSpecDetailed.md), which is to this schema what inline Doxygen is to a C
+[halSpecDetailed.md](halSpecDetailed.md), which is to this schema what inline Doxygen is to a C
 header: one entry per parameter, with its type, constraint, access and description.
 
 **The schema exposes four TR-181 families, not one.** A reader who has seen this HAL described
@@ -95,10 +128,10 @@ carried into the WAN data path.
 
 Those 369 parameter definitions cover **512 logical TR-181 paths**, because 20 of them use regular
 expression alternation and so match more than one path each. The expansion is enumerated per
-definition in [`halSpecDetailed.md`](halSpecDetailed.md).
+definition in [halSpecDetailed.md](halSpecDetailed.md).
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) and
-[`config/xdsl_manager_conf.json`](../../config/xdsl_manager_conf.json), with the owning-service
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) and
+[`config/xdsl_manager_conf.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/xdsl_manager_conf.json), with the owning-service
 relationship corroborated by the workspace inventory in the superproject `README.md`.
 
 ## Optional Components
@@ -112,7 +145,7 @@ The single deployment is therefore stated once, here, and every other mention of
 repeats these three values. The manager reads `/etc/rdk/conf/xdsl_manager_conf.json`, and that file
 names the deployed schema path `/etc/rdk/schemas/xdsl_hal_schema.json` in `hal_schema_path` and the
 server port `4098` in `server_port` [`config/xdsl_manager_conf.json`]. The schema that travels with
-this repository is [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json); the
+this repository is [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json); the
 `/etc/rdk/schemas` path is where a deployment is expected to install it, and it is the path a
 `getSchemaResponse` is expected to return.
 
@@ -127,7 +160,7 @@ Three genuinely optional surfaces do exist.
   through four lists. `getParameterSupportedList` admits 348 entries and
   `getParameterOptionalList` a further 45; `setParameterSupportedList` admits 18 and
   `setParameterOptionalList` a further 6. Those entries are not all parameters: the read and write
-  lists also admit object paths, and `halSpecDetailed.md` gives the exact split per list. A vendor server is expected to answer the supported set;
+  lists also admit object paths, and [halSpecDetailed.md](halSpecDetailed.md) gives the exact split per list. A vendor server is expected to answer the supported set;
   the optional set is the part a platform may decline.
 - **Line diagnostics.** The SELT, QLN and UER diagnostic parameters under `Device.DSL` are exercised
   only when a diagnostic is requested, and `dslDiagnosticsStateEnumList` includes a `None` state for
@@ -135,9 +168,9 @@ Three genuinely optional surfaces do exist.
 
 The schema carries a small number of structural defects that a caller should know about before
 relying on a branch of it. They are inventoried, with their consequences, in the `Contract Defects`
-section of [`halSpecDetailed.md`](halSpecDetailed.md) rather than repeated here.
+section of [halSpecDetailed.md](halSpecDetailed.md) rather than repeated here.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) and
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) and
 `source/TR-181/integration_src.shared/xdsl_hal.h`.
 
 ## Component Runtime Execution Requirements
@@ -183,7 +216,7 @@ before the manager starts, since the manager's total tolerance for a missing ser
 seconds above.
 
 Derived from `source/TR-181/integration_src.shared/xdsl_hal.c` and
-[`config/xdsl_manager_conf.json`](../../config/xdsl_manager_conf.json).
+[`config/xdsl_manager_conf.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/xdsl_manager_conf.json).
 
 ### Threading Model
 
@@ -220,7 +253,7 @@ space, no shared memory and no direct function call: a vendor's allocations and 
 reach the manager's heap, and equally the manager cannot recover a crashed vendor server by any means
 other than reconnecting. That is isolation of memory, not isolation from the peer. The peer's data
 crosses the boundary and is copied into fixed manager buffers, in places without a bound;
-`Contract Defects` in `halSpecDetailed.md` records those copies with their locators, so a malformed or
+`Contract Defects` in [halSpecDetailed.md](halSpecDetailed.md) records those copies with their locators, so a malformed or
 hostile message can corrupt manager memory through the parsing path.
 
 A single client instance per manager process is expected. On the server side the listen backlog is
@@ -276,7 +309,7 @@ it is the pattern a caller should follow.
   that does not arrive complete in one read is parsed as a fragment and discarded without a reply. The
   accumulation on the reply path is also unbounded and grows by repeated reallocation, so neither
   direction offers a framed, bounded whole-message guarantee; `Contract Defects` in
-  `halSpecDetailed.md` states both limits.
+  [halSpecDetailed.md](halSpecDetailed.md) states both limits.
 - The transport owns the request-tracking list that correlates replies with waiting callers, and
   releases it on `json_hal_client_terminate()` (`json_hal_client.h:125`).
 - Vendor servers must release whatever they allocate per request. Nothing in this contract gives the
@@ -301,7 +334,7 @@ reports the DSL line's own power state, drawn from `powerManagementStateEnumList
 line — and are **read-only status reported by the interface**, not a control surface for the power
 state of the gateway. It is not a member of either set-parameter list.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) and
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) and
 `source/TR-181/integration_src.shared/xdsl_hal.c`.
 
 ### Asynchronous Notification Model
@@ -342,9 +375,9 @@ one.
 in the transport only behind the `JSON_BLOCKING_SUBSCRIBE_EVENT` compile-time flag
 (`json_hal_server.h:45-53`) and are used by the telco voice HAL, not by this one. The transport's own
 notification enumeration and the schema's do not correspond member for member; the divergence is set
-out in the `Event Model` section of [`halSpecDetailed.md`](halSpecDetailed.md).
+out in the `Event Model` section of [halSpecDetailed.md](halSpecDetailed.md).
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json),
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json),
 `source/TR-181/integration_src.shared/xdsl_hal.c` and `.h`, and `json_hal_server.h`.
 
 ### Blocking calls
@@ -435,7 +468,7 @@ paragraphs after the table answer it.
 | --- | --- | --- |
 | `Success` | The request was carried out. This is the schema's default value. | Proceed. |
 | `Failed` | The request was understood but could not be carried out. | Treat as a runtime failure; retrying may succeed if the cause was transient. |
-| `Invalid Argument` | The vocabulary's value for a request that was malformed or carried a value outside its constraint. **No code path in the pinned transport constructs it**, so it reaches a caller only where a vendor's own action handler writes the literal string into `Result` itself. | Do not retry unchanged — correct the request. Check the value against the parameter's constraint in `halSpecDetailed.md`. |
+| `Invalid Argument` | The vocabulary's value for a request that was malformed or carried a value outside its constraint. **No code path in the pinned transport constructs it**, so it reaches a caller only where a vendor's own action handler writes the literal string into `Result` itself. | Do not retry unchanged — correct the request. Check the value against the parameter's constraint in [halSpecDetailed.md](halSpecDetailed.md). |
 | `Not Supported` | The server does not implement this parameter or action. | Do not retry. Treat the parameter as absent on this platform; this is the expected answer for a member of an optional list. |
 
 **The schema states what a well-formed message looks like; the pinned transport does not check
@@ -482,8 +515,8 @@ indistinguishable to the caller from a hung server, and costs the caller the ful
 
 **Validation is the sender's job on both sides.** Because nothing validates a message on the way in,
 a caller that wants a malformed request caught at all must validate its own outbound messages against
-[`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) before sending them, and a
-vendor server must apply the parameter constraints in `halSpecDetailed.md` in its handler. Neither
+[`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) before sending them, and a
+vendor server must apply the parameter constraints in [halSpecDetailed.md](halSpecDetailed.md) in its handler. Neither
 side is protected by the other.
 
 **A caller that needs to distinguish the four statuses must read the field directly.** The
@@ -499,7 +532,7 @@ alone will not recognise it even when a vendor handler does send it.
 malformed message, a connection lost mid-exchange — both sides should log with enough context to
 identify the exchange, which in practice means the `reqId`.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json), and
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json), and
 `json_hal_client.h`, `json_hal_server.c`, `json_hal_server.h`, `json_hal_common.h`,
 `json_rpc_common.h` and `CMakeLists.txt` in `json-hal-library` at the pinned commit.
 
@@ -513,15 +546,15 @@ interface.
 
 Persistence of the TR-181 data model is the manager's responsibility and that of the CCSP framework
 around it, not the HAL's. The parameter definitions this repository backs are declared in
-[`config/RdkXdslManager.xml`](../../config/RdkXdslManager.xml), and it is that layer which decides
+[`config/RdkXdslManager.xml`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/RdkXdslManager.xml), and it is that layer which decides
 what is restored at startup.
 
 The practical consequence for a caller is that **the vendor server is the authority on current
 state, and the manager should read it back rather than assume a written value persisted.** Whether a
 vendor implementation stores line configuration across a reboot is not specified by this interface.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) and
-[`config/RdkXdslManager.xml`](../../config/RdkXdslManager.xml).
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) and
+[`config/RdkXdslManager.xml`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/RdkXdslManager.xml).
 
 ## Non functional requirements
 
@@ -570,7 +603,7 @@ sensitivity marking on a parameter and no way for one side to ask the other to s
 nothing enforces them mechanically.
 
 The values these rules govern, each with the row in
-[`halSpecDetailed.md`](halSpecDetailed.md) that describes it:
+[halSpecDetailed.md](halSpecDetailed.md) that describes it:
 
 | Value | Why it is sensitive |
 | --- | --- |
@@ -618,7 +651,7 @@ The values these rules govern, each with the row in
 
 Derived from `source/TR-181/include/xdsl_apis.h`,
 `source/TR-181/integration_src.shared/xdsl_hal.c`,
-[`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) for the parameters named
+[`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) for the parameters named
 above, and `json_hal_common.h` at the pinned commit for the buffer the transport fills.
 
 ### Memory and performance requirements
@@ -672,17 +705,17 @@ never constructs.
 the file its content came from, and the rule that follows is: **any change to a file this document
 cites obliges a review of the topics that cite it.** That trigger is checkable from a diff, which a
 review-by date is not. The addressee is the repository's code owner,
-**`@rdkcentral/wanmanager-maintainers`**, per [`.github/CODEOWNERS`](../../.github/CODEOWNERS). A
-change to [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) in particular
+<b>`@rdkcentral/wanmanager-maintainers`</b>, per [`.github/CODEOWNERS`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/.github/CODEOWNERS). A
+change to [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) in particular
 invalidates the counts in `Description` and `API Surface` and the enumerations in
 `Data Structures and Defines` and `State Diagram`.
 
-Derived from [`.github/CODEOWNERS`](../../.github/CODEOWNERS).
+Derived from [`.github/CODEOWNERS`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/.github/CODEOWNERS).
 
 ### Licensing
 
 Licensed under the Apache License, Version 2.0 (the "License"). You may not use the files of this
-repository except in compliance with the License. See [`LICENSE`](../../LICENSE); `COPYING` is a
+repository except in compliance with the License. See [`LICENSE`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/LICENSE); `COPYING` is a
 symlink to the same text. A vendor implementation of this interface is expected to be released under
 compatible terms.
 
@@ -700,9 +733,9 @@ dependency the build declares a version for is D-Bus: `PKG_CHECK_MODULES([DBUS],
 
 The transport's own JSON dependency needs both halves of its answer, because either alone misleads:
 
-- **`json-c (0.11)` is the declared minimum**, stated twice in the `json-hal-library` README
+- <b>`json-c (0.11)` is the declared minimum</b>, stated twice in the `json-hal-library` README
   (`:56` and `:140`).
-- **`json-c-0.15-20200726` is the revision the upstream build actually exercises**, named as the
+- <b>`json-c-0.15-20200726` is the revision the upstream build actually exercises</b>, named as the
   `json-c` branch in that repository's `cov_docker_script/component_config.json` and consumed by its
   native-build workflow.
 
@@ -732,7 +765,7 @@ the library declares rather than guidance on what to build against:
 No toolchain version is specified beyond the above: `configure.ac` requires a C and a C++ compiler
 via `AC_PROG_CC` and `AC_PROG_CXX` but sets no minimum for either.
 
-Derived from [`configure.ac`](../../configure.ac), `Makefile.am`, and the `json-hal-library` README
+Derived from [`configure.ac`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/configure.ac), `Makefile.am`, and the `json-hal-library` README
 and build configuration at
 [commit `86a0a300`](https://github.com/rdkcentral/json-hal-library/tree/86a0a300b976f8e3295064af8fb3fd1c793c9e64).
 
@@ -772,8 +805,8 @@ contract variability:
 | `--enable-notify` | `configure.ac:80` | None. Enables systemd notification in the manager. |
 | `JSON_BLOCKING_SUBSCRIBE_EVENT` | `json_hal_server.h:48` | None here. Gates the `onChangeSync` notification types, which this schema does not use. |
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json),
-[`configure.ac`](../../configure.ac) and `json_hal_server.h`.
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json),
+[`configure.ac`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/configure.ac) and `json_hal_server.h`.
 
 ### Platform or Product Customization
 
@@ -792,7 +825,7 @@ optional/mandatory split.
 The writable surface is deliberately narrow. The two set-parameter lists hold 24 entries between
 them, and only 22 of those are parameter definitions — the other two are the `Device.ATM.Link.{i}.`
 and `Device.PTM.Link.{i}.` object paths — so 22 of 369 parameter definitions are writable. A caller
-should treat this interface as predominantly read-only and check `halSpecDetailed.md` before
+should treat this interface as predominantly read-only and check [halSpecDetailed.md](halSpecDetailed.md) before
 assuming a parameter can be written.
 
 **One product-customization divergence is present in the repository and is left unresolved here,
@@ -801,7 +834,7 @@ integration layer is compiled for a single DSL line — `XDSL_MAX_LINES` is `1` 
 `source/TR-181/integration_src.shared/xdsl_hal.c:98`, and it bounds the subscription loop in
 `subscribe_dsl_link_event()` — while the TR-181 data model declares room for 128 instances of each
 indexed object. `<maxInstance>` is an XML element, not an attribute, and appears with the value
-`128` at [`config/RdkXdslManager.xml`](../../config/RdkXdslManager.xml) lines `34` (`Device.DSL`
+`128` at [`config/RdkXdslManager.xml`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/RdkXdslManager.xml) lines `34` (`Device.DSL`
 `Line`), `801` (`Device.DSL` `Channel`), `1703` (`Device.PTM` `Link`) and `1854` (`Device.ATM`
 `Link`).
 
@@ -809,21 +842,21 @@ A caller should read this as: the data model admits multiple lines, and the ship
 subscribes events for one. A platform supporting more than one DSL line needs that constant revisited;
 this document records the divergence rather than asserting which value is correct.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json),
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json),
 `source/TR-181/integration_src.shared/xdsl_hal.c` and
-[`config/RdkXdslManager.xml`](../../config/RdkXdslManager.xml).
+[`config/RdkXdslManager.xml`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/RdkXdslManager.xml).
 
 ## Interface API Documentation
 
 The interface is defined by
-[`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json), a JSON Schema draft-07
+[`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json), a JSON Schema draft-07
 document. That file is the single authority for what may cross this interface; this section describes
-its shape, and [`halSpecDetailed.md`](halSpecDetailed.md) documents every parameter it defines.
+its shape, and [halSpecDetailed.md](halSpecDetailed.md) documents every parameter it defines.
 
 To use the xDSL HAL from an RDK-B component:
 
 1. **Configure:** ensure the vendor server's port and the schema path in
-   [`config/xdsl_manager_conf.json`](../../config/xdsl_manager_conf.json) match the deployment.
+   [`config/xdsl_manager_conf.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/xdsl_manager_conf.json) match the deployment.
 2. **Link:** establish a link dependency on `json_hal_client` from `json-hal-library`.
 3. **Initialize:** follow the ordering in
    **Initialization and Startup** exactly.
@@ -863,20 +896,20 @@ hardware or the data model layer brings it into existence, not because a caller 
 - **Initialization precedes everything.** The ordering in
   **Initialization and Startup** is mandatory; a request issued before the
   connectivity poll succeeds has no established behaviour.
-- **`getSchema` before assuming a schema path, and the answer is untrusted input.** The path in the
+- <b>`getSchema` before assuming a schema path, and the answer is untrusted input.</b> The path in the
   client configuration is what the client reads locally; `getSchema` asks the server where *its*
   schema is and is answered with `getSchemaResponse` carrying `SchemaInfo.FilePath`. A caller that
   needs to confirm both sides agree should ask rather than assume, and the shipped example response
   in this repository returns a path that does not match the configured one — a discrepancy recorded
-  in [`halSpecDetailed.md`](halSpecDetailed.md). **The returned string is data supplied by another
+  in [halSpecDetailed.md](halSpecDetailed.md). **The returned string is data supplied by another
   process and must be treated as such**: its only use is to be compared, as a whole string, against
   the `hal_schema_path` the manager already holds from
-  [`config/xdsl_manager_conf.json`](../../config/xdsl_manager_conf.json). A caller must not open,
+  [`config/xdsl_manager_conf.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/config/xdsl_manager_conf.json). A caller must not open,
   `stat`, read, execute, log or interpolate it, must not use it to locate the schema it validates
   against, and must treat any value other than an exact match as a configuration fault to report
   rather than a path to follow. **Data Structures and Defines** sets out what the schema's constraint
   on that field does and does not exclude.
-- **`subscribeEvent` before expecting `publishEvent`.** Events are not delivered to a caller that has
+- <b>`subscribeEvent` before expecting `publishEvent`.</b> Events are not delivered to a caller that has
   not subscribed, and only two parameters may be subscribed at all.
 - **Correlation is by `reqId`.** A response carries the `reqId` of the request it answers, and that is
   the only field tying the two together. A caller issuing concurrent requests must use distinct values
@@ -909,17 +942,17 @@ a caller must construct or interpret. The envelope is the part every message sha
 | `action` | `action` | one of eleven enumerated values |
 | `reqId` | inline | `type` `string`, `pattern` `^[0-9]+$` |
 
-**`reqId` is a numeric string, not an integer.** A caller emitting `"reqId": 100001` rather than
+<b>`reqId` is a numeric string, not an integer.</b> A caller emitting `"reqId": 100001` rather than
 `"reqId": "100001"` produces a message that fails validation, and this is the most easily made mistake
 in the envelope.
 
 Three payload carriers exist, each bound to particular actions:
 
-- **`params`** — an array of parameter entries. Carried by `getParameters`, `getParametersResponse`,
+- <b>`params`</b> — an array of parameter entries. Carried by `getParameters`, `getParametersResponse`,
   `setParameters`, `subscribeEvent`, `publishEvent` and `deleteObject`.
-- **`Result`** — an object whose only property is `Status`, drawn from `resultStatusEnumList`.
+- <b>`Result`</b> — an object whose only property is `Status`, drawn from `resultStatusEnumList`.
   Carried by `result`.
-- **`SchemaInfo`** — an object whose only property is `FilePath`, a string matching
+- <b>`SchemaInfo`</b> — an object whose only property is `FilePath`, a string matching
   `^(.+)/([^/]+)$`. Carried by `getSchemaResponse`. **That pattern is close to no constraint at
   all.** It requires one `/` with at least one character before it and at least one non-`/`
   character after it, and it sets no length bound, no leading-`/` requirement and no character
@@ -972,10 +1005,10 @@ request timeout period; the file it is loaded from uses the keys `hal_schema_pat
 
 The schema defines eleven enumerated value lists. Rather than repeat them here, they are catalogued
 with their members in the `Enumeration Appendix` of
-[`halSpecDetailed.md`](halSpecDetailed.md); the two that describe line and link state are set out in
+[halSpecDetailed.md](halSpecDetailed.md); the two that describe line and link state are set out in
 **State Diagram** because they are the pair most often confused.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json) and
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json) and
 `json_hal_common.h`.
 
 ### API Surface
@@ -1013,11 +1046,11 @@ Three facts about this vocabulary are easy to get wrong and each is worth statin
   transport's ticker deadline and is then handed a failure it will read as an unresponsive server —
   see `Blocking calls` for that deadline. `result` is consequently the reply in more than one
   workflow.
-- **`deleteObject` is instantiable in this schema**, which distinguishes it from the GPON and telco
+- <b>`deleteObject` is instantiable in this schema</b>, which distinguishes it from the GPON and telco
   voice JSON HALs, whose `deleteObject` carries an empty `anyOf` and so admits no message at all. Here
   it does admit one — but for DSL line instances only, per
   **Object Lifecycles**.
-- **`getActiveSubscriptionsResponse` has no payload binding**, so the schema does not state how the
+- <b>`getActiveSubscriptionsResponse` has no payload binding</b>, so the schema does not state how the
   subscription list is carried back. A caller should not infer a `params` array from the response name.
 
 The **data surface** is the four TR-181 family trees below. Each is exposed in full by the schema; the
@@ -1036,10 +1069,10 @@ lists sit alongside them, for 422 definitions in total.
 
 **Per-parameter detail is not repeated here.** Every one of the 369 parameter definitions, with its
 expansion where it alternates, its type, its constraint, its access and its description, is documented
-in [`halSpecDetailed.md`](halSpecDetailed.md), together with the object index, the enumeration
+in [halSpecDetailed.md](halSpecDetailed.md), together with the object index, the enumeration
 appendix, worked message examples for each workflow, and the schema's known contract defects.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json).
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json).
 
 ### Sequence Diagram
 
@@ -1184,7 +1217,7 @@ rather than on the interface-status enumeration:
 - `source/TR-181/integration_src.shared/xdsl_hal.c:858-881` maps vendor values onto exactly these six
   link states, with a separate branch for the interface-status set.
 - The repository's own
-  [`hal_schema/example_publishEvent_msg.json`](../../hal_schema/example_publishEvent_msg.json)
+  [`hal_schema/example_publishEvent_msg.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/example_publishEvent_msg.json)
   publishes `Up` and `Initializing`, both members of `linkStatusEnumList`.
 
 The interface-status enumeration bound to `Device.DSL.Line.{i}.Status` carries the seven standard
@@ -1198,6 +1231,6 @@ The manager also emits the telemetry marker `RDKB_XDSL_SM_TRANSITION`
 manager-internal transitions and is not part of this interface's contract; it is named here only
 because it is useful when correlating logs against observed link state.
 
-Derived from [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json),
+Derived from [`hal_schema/xdsl_hal_schema.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/xdsl_hal_schema.json),
 `source/TR-181/include/xdsl_apis.h`, `source/TR-181/integration_src.shared/xdsl_hal.c` and
-[`hal_schema/example_publishEvent_msg.json`](../../hal_schema/example_publishEvent_msg.json).
+[`hal_schema/example_publishEvent_msg.json`](https://github.com/rdkcentral/xdsl-manager/blob/609617f9f3b2648175851e9b6c0ca4857deb8404/hal_schema/example_publishEvent_msg.json).
