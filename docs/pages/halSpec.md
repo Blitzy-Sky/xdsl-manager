@@ -108,6 +108,14 @@ schema file and exactly one client configuration file, so every deployment reads
 and no build flag selects between alternatives. Callers who have worked with the GPON JSON HAL, which
 does ship a variant pair, should not expect the equivalent here.
 
+The single deployment is therefore stated once, here, and every other mention of it in this document
+repeats these three values. The manager reads `/etc/rdk/conf/xdsl_manager_conf.json`, and that file
+names the deployed schema path `/etc/rdk/schemas/xdsl_hal_schema.json` in `hal_schema_path` and the
+server port `4098` in `server_port` [`config/xdsl_manager_conf.json`]. The schema that travels with
+this repository is [`hal_schema/xdsl_hal_schema.json`](../../hal_schema/xdsl_hal_schema.json); the
+`/etc/rdk/schemas` path is where a deployment is expected to install it, and it is the path a
+`getSchemaResponse` is expected to return.
+
 Three genuinely optional surfaces do exist.
 
 - **ATM and PTM status subscription.** `xdsl_hal_init()` subscribes only the DSL line link status.
@@ -146,8 +154,10 @@ written. `xdsl_hal_init()`, at `source/TR-181/integration_src.shared/xdsl_hal.c:
 that order and a caller must not vary it.
 
 - `json_hal_client_init("/etc/rdk/conf/xdsl_manager_conf.json")` — `xdsl_hal.c:189`, reading the
-  configuration path fixed by `XDSL_JSON_CONF_PATH` at `:52`. This loads the schema path and the
-  server port; it does not open the socket.
+  configuration path fixed by `XDSL_JSON_CONF_PATH` at `:52`. This loads the schema path
+  `/etc/rdk/schemas/xdsl_hal_schema.json` and the server port `4098` from that file's
+  `hal_schema_path` and `server_port` keys [`config/xdsl_manager_conf.json`]; it does not open the
+  socket.
 - `json_hal_client_run()` — `xdsl_hal.c:196`. Starts the client socket thread, which is what
   actually connects.
 - A connectivity poll on `json_hal_is_client_connected()` — `xdsl_hal.c:212`, inside the retry loop
