@@ -216,9 +216,12 @@ Derived from `json_hal_client.h` in
 **The manager and the vendor implementation are two processes communicating over a TCP socket.** This
 is the single most consequential difference between this HAL and the C HALs in the RDK-B corpus, and
 most of the rest of this document follows from it. There is no vendor `.so` in the manager's address
-space, no shared memory and no direct function call: a vendor defect cannot corrupt the manager's
-heap, and equally the manager cannot recover a crashed vendor server by any means other than
-reconnecting.
+space, no shared memory and no direct function call: a vendor's allocations and pointers cannot
+reach the manager's heap, and equally the manager cannot recover a crashed vendor server by any means
+other than reconnecting. That is isolation of memory, not isolation from the peer. The peer's data
+crosses the boundary and is copied into fixed manager buffers, in places without a bound;
+`Contract Defects` in `halSpecDetailed.md` records those copies with their locators, so a malformed or
+hostile message can corrupt manager memory through the parsing path.
 
 A single client instance per manager process is expected. On the server side the listen backlog is
 32 (`tcp_server.c:155` in `json-hal-library`), so a vendor server accepts connections rather than
@@ -268,6 +271,12 @@ it is the pattern a caller should follow.
   read is reassembled by successive reallocation (`tcp_client.c:188-212`). A vendor server is
   therefore not required to fit a response into a single 16 KiB read, but it is required to emit
   well-formed JSON, because reassembly is driven by buffer occupancy rather than by JSON structure.
+  **Reassembly exists on the reply path only.** The server side receives into one fixed buffer and
+  hands exactly what a single `recv` returned to its handler (`tcp_server.c:219,262`), so a request
+  that does not arrive complete in one read is parsed as a fragment and discarded without a reply. The
+  accumulation on the reply path is also unbounded and grows by repeated reallocation, so neither
+  direction offers a framed, bounded whole-message guarantee; `Contract Defects` in
+  `halSpecDetailed.md` states both limits.
 - The transport owns the request-tracking list that correlates replies with waiting callers, and
   releases it on `json_hal_client_terminate()` (`json_hal_client.h:125`).
 - Vendor servers must release whatever they allocate per request. Nothing in this contract gives the
@@ -621,7 +630,7 @@ figures a caller should size against.
 
 | Bound | Value | Locator |
 | --- | --- | --- |
-| Socket read unit | 16384 bytes, reassembled across reads | `json_rpc_common.h:87` |
+| Socket read unit | 16384 bytes; reassembled across reads on the reply path only, and a request must arrive in one read | `json_rpc_common.h:87` |
 | Parameter value ceiling | 2048 bytes | `json_hal_common.h:84-89` |
 | Parameter name ceiling | 256 bytes | `json_hal_common.h:84-89` |
 | Server listen backlog | 32 | `tcp_server.c:155` |
