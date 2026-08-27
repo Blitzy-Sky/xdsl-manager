@@ -2112,7 +2112,7 @@ on the harness too: a callback used as a test hook must not perform a HAL call, 
 observes no further events after one is delivered should suspect a callback that has not returned
 before it suspects the vendor.
 
-### A helper's success is not the vendor's acceptance, and the public API cannot give you both
+### A helper's success is not the vendor's acceptance, and the public API cannot report both
 
 `json_hal_client_subscribe_event` returns success once it has sent the subscription and recorded the
 event locally; **it never reads `Result.Status` from the reply** (`json_hal_client.c:707-745`), and it
