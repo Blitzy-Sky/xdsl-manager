@@ -956,10 +956,21 @@ Three payload carriers exist, each bound to particular actions:
   `^(.+)/([^/]+)$`. Carried by `getSchemaResponse`. **That pattern is close to no constraint at
   all.** It requires one `/` with at least one character before it and at least one non-`/`
   character after it, and it sets no length bound, no leading-`/` requirement and no character
-  restriction, so `../../../etc/shadow`, `//host/share/x.json` and
-  `http://user:password@host/x.json` all satisfy it — each verified against the shipped schema. A
-  caller therefore gets no protection from validation here and must apply the comparison rule in
-  **Method Sequencing** itself.
+  restriction.
+
+**What that admits.** All three `FilePath` values below satisfy the pattern — a parent-directory
+traversal, a UNC-style host reference and a credential-bearing URL — each verified against the shipped
+schema. They are reproduced in a fenced block, byte for byte, rather than in code spans, so that a
+rendered page carries them as inert text and neither rewrites nor links any of them:
+
+```text
+../../../etc/shadow
+//host/share/x.json
+http://user:password@host/x.json
+```
+
+A caller therefore gets no protection from validation here and must apply the comparison rule in
+**Method Sequencing** itself.
 
 A parameter entry has up to four properties, and which are required depends on the action:
 
