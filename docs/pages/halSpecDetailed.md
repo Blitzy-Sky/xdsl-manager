@@ -229,6 +229,13 @@ The request/response shape of every bound action is the same: the manager sends 
 vendor answers with a matching `reqId`, and the manager reads the payload or the status out of the
 reply.
 
+**Both diagrams in this reference are authored as fenced `mermaid` blocks.** Such blocks render as
+diagrams on GitHub, which is the primary surface for a developer reading this repository. The
+documentation generator used here does **not** render them; it displays their source text instead.
+That limitation is stated rather than worked around, because the only available workaround would fix
+the generated site at the cost of the surface most readers actually use. [halSpec.md](halSpec.md) records the
+same limitation for the diagrams it carries.
+
 ```mermaid
 sequenceDiagram
     participant Mgr as RdkXdslManager
