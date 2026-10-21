@@ -47,23 +47,23 @@ it sits on.
 
 ```mermaid
 flowchart TD
-    Stack["RDK-B Stack (CcspPandM, WAN manager)"]
-    Mgr["RdkXdslManager (this repository)"]
-    Cli["json_hal_client (json-hal-library)"]
+    Dm["WAN Manager and other RDK-B components"]
+    Mgr["RdkXdslManager"]
+    Cli["json_hal_client"]
     Sock["JSON HAL socket, TCP port 4098"]
     Srv["Vendor JSON HAL Server"]
     Drv["Vendor DSL driver and firmware"]
-    Stack <--> Mgr
+    Dm <-->|TR-181 parameters| Mgr
     Mgr <--> Cli
     Cli <--> Sock
     Sock <--> Srv
     Srv <--> Drv
 ```
 
-`RdkXdslManager` is the owning middleware service for this interface: the workspace inventory in the
-superproject `README.md` pairs the DSL HAL with `RdkXdslManager` and with no other component, so
-nothing sits between the RDK-B stack and this manager. A developer integrating against the xDSL HAL
-is therefore normally working inside this manager rather than opening the socket directly.
+`hal_schema/xdsl_hal_schema.json` is consumed by `RdkXdslManager` and by no other component: WAN
+Manager and other RDK-B components reach DSL state through the TR-181 data model this manager
+publishes. A developer integrating against the xDSL HAL is therefore normally working inside this
+manager rather than opening the socket directly.
 
 Internally the component is three layers, and the directory names follow them:
 
@@ -74,8 +74,7 @@ Internally the component is three layers, and the directory names follow them:
 - **The HAL integration layer**, `source/TR-181/integration_src.shared/` — the JSON HAL client
   integration that turns those handlers into messages on the socket. `xdsl_hal.c` brings the client
   up in a fixed order: `json_hal_client_init()` against the configuration path, then
-  `json_hal_client_run()`, then a bounded connectivity poll, then event subscription
-  (`xdsl_hal.c:189`, `:196`, `:210`).
+  `json_hal_client_run()`, then a bounded connectivity poll, then event subscription.
 
 ## The JSON HAL contract
 
@@ -86,7 +85,7 @@ convention, and a mismatch in any of them leaves the manager unable to reach the
 | --- | --- | --- |
 | Module name | `xdslhal` | [`hal_schema/xdsl_hal_schema.json`](hal_schema/xdsl_hal_schema.json), `definitions.moduleName.const` |
 | Schema version | `0.0.1` | [`hal_schema/xdsl_hal_schema.json`](hal_schema/xdsl_hal_schema.json), `definitions.schemaVersion.const` |
-| Client configuration file | `/etc/rdk/conf/xdsl_manager_conf.json` | `source/TR-181/integration_src.shared/xdsl_hal.c:52`, macro `XDSL_JSON_CONF_PATH` |
+| Client configuration file | `/etc/rdk/conf/xdsl_manager_conf.json` | `source/TR-181/integration_src.shared/xdsl_hal.c`, macro `XDSL_JSON_CONF_PATH` |
 | Schema path on the device | `/etc/rdk/schemas/xdsl_hal_schema.json` | [`config/xdsl_manager_conf.json`](config/xdsl_manager_conf.json), key `hal_schema_path` |
 | Server port | `4098` | [`config/xdsl_manager_conf.json`](config/xdsl_manager_conf.json), key `server_port` |
 
@@ -162,20 +161,20 @@ left exactly as they are, because they are inputs that other work may already de
 
 The component is an Autoconf, Automake and Libtool project. What its build files establish:
 
-- The package is `RdkXdslManager-rdkb` (`configure.ac:23`) and the deliverable is an executable
-  named `xdslmanager` (`source/RdkXdslManager/Makefile.am:20`).
+- The package is `RdkXdslManager-rdkb` (`configure.ac`) and the deliverable is an executable named
+  `xdslmanager` (`source/RdkXdslManager/Makefile.am`).
 - The root `Makefile.am` descends into a single subdirectory, `SUBDIRS = source`, and `cfg/` is the
-  Autoconf macro directory (`configure.ac:26`).
+  Autoconf macro directory (`configure.ac`).
 - The one dependency the build declares a version for is D-Bus:
-  `PKG_CHECK_MODULES([DBUS],[dbus-1 >= 1.6.18])` (`configure.ac:106`).
-- Two configure switches exist. `--enable-gtestapp` (`configure.ac:33`) adds the gtest binary under
-  `source/test/`, and `--enable-notify` (`configure.ac:80`) enables systemd notification.
+  `PKG_CHECK_MODULES([DBUS],[dbus-1 >= 1.6.18])` (`configure.ac`).
+- Two configure switches exist in `configure.ac`. `--enable-gtestapp` adds the gtest binary under
+  `source/test/`, and `--enable-notify` enables systemd notification.
 
 **This repository documents no end-to-end build recipe, and none is invented here.** It ships no
 bootstrap or autogen script and no CMake project. Its remaining dependencies are named only as
 linker flags — `libccsp_common`, `librdkloggers`, `libcm_mgnt`, `libsyscfg`, `libsysevent`,
 `libhal_platform`, `libjson_hal_client`, `libjson-c` and `libavro` among them
-(`source/RdkXdslManager/Makefile.am:35`, `source/TR-181/integration_src.shared/Makefile.am:34`) —
+(`source/RdkXdslManager/Makefile.am`, `source/TR-181/integration_src.shared/Makefile.am`) —
 with no version declared for any of them, and one of the compiler include paths,
 `$(top_srcdir)/hal/include`, points at a directory this repository does not ship. The component is
 therefore built as part of the surrounding RDK-B build, which supplies that context; a developer
