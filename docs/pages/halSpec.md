@@ -121,8 +121,11 @@ to the registered callback.
 - Event callbacks run **on the client socket thread**, not the caller's. A callback must be safe to
   run concurrently with the caller's own work and must not block, because the same thread receives
   the next response.
-- `json_hal_client_send_and_get_reply()` blocks the calling thread while the socket thread receives
-  the reply.
+- A caller serializes each complete request exchange per client instance — from
+  `json_hal_client_get_request_header()` to the return of `json_hal_client_send_and_get_reply()` or
+  `json_hal_client_send_and_get_reply_with_timeout()`, and every `json_hal_client_subscribe_event()`
+  call, which runs a whole exchange — because the transport assigns request identifiers, records
+  pending requests and writes the socket without synchronization.
 
 Vendors may implement internal threading and event mechanisms in the server to meet their
 operational requirements, provided each response carries the `reqId` of the request it answers.
@@ -134,8 +137,7 @@ on the loopback interface.** There is no vendor library in the manager's address
 memory and no direct function call. The isolation covers memory, not data: received names and
 values are copied into fixed manager buffers, and the name parse writes a `%64s` field plus its
 terminator into a 64-byte buffer, so an over-long name can corrupt manager memory through the
-parsing path. `Contract Defects` in [halSpecDetailed.md](halSpecDetailed.md) records the
-parameter-helper limit that truncates an over-long value without a terminating NUL.
+parsing path. **Memory Model** gives the size limits of the parameter buffers.
 
 One client instance per manager process is expected. The server accepts more than one connection,
 with a listen backlog of `32`, but this contract gives a second concurrent client no meaning.
@@ -145,20 +147,27 @@ has, re-establishes its subscriptions rather than assuming they survived.
 
 ### Memory Model
 
-Every message is a reference-counted `json_object` from `json-c`, so ownership is a matter of
-reference counts. The manager's `FREE_JSON_OBJECT` macro is a null-checked `json_object_put()`,
-applied to both the request and the reply on every exchange path, error paths included.
+Every message is a reference-counted `json_object` from `json-c`, and the holder of a reference
+releases it with `json_object_put()`. The manager's `FREE_JSON_OBJECT` macro is a null-checked
+`json_object_put()`.
 
 #### Caller Responsibilities
 
 - Release the request from `json_hal_client_get_request_header()` and the reply returned by
   `json_hal_client_send_and_get_reply()` once the exchange completes, on the failure path as well as
-  the success path.
-- Copy any value needed after the reply is released, because values read from a reply point into it.
+  the success path. A failed exchange leaves the reply handle unwritten, so initialise it to `NULL`
+  before the call.
+- `json_hal_get_param()` copies a parameter's name and value into the caller's `hal_param_t`, and
+  that copy outlives the reply. A string or object read directly from the reply through `json-c`,
+  such as the string `json_object_get_string()` returns, belongs to the reply; copy what is kept
+  before releasing the reply.
 - Treat the message buffer passed to an event callback as valid only for the duration of the
   callback.
-- Keep each parameter name within 256 bytes and each value within 2048 bytes, the limits of the
-  transport's `hal_param_t`.
+- Keep each parameter name to at most 255 bytes and each value to at most 2047 bytes, leaving room
+  for the terminating NUL in `hal_param_t`, and check the length before `json_hal_add_param()`.
+  Treat a `json_hal_get_param()` field whose final byte is not NUL as truncated and unterminated,
+  and read that parameter directly from the reply instead. `Contract Defects` in
+  [halSpecDetailed.md](halSpecDetailed.md) describes the mechanism.
 
 #### Module Responsibilities
 
@@ -168,7 +177,8 @@ applied to both the request and the reply on every exchange path, error paths in
 - The transport owns the request-tracking list that matches replies to waiting callers and releases
   it in `json_hal_client_terminate()`.
 - Vendor servers release whatever they allocate per request.
-- Strings crossing the interface are JSON strings and must be valid UTF-8.
+- Strings crossing the interface are JSON strings and must be valid UTF-8 and zero-terminated once
+  decoded.
 
 ### Power Management Requirements
 
@@ -190,8 +200,13 @@ unsolicited `publishEvent` messages whenever the subscribed parameter changes.
   `Device.FAST.Line.{i}.LinkStatus`.
 - **The `onChange` notification.** `subscribe_dsl_link_event()` requests `onChange`. This schema has no
   `onChangeSync` or `onChangeSyncTimeout` notification type.
-- **Subscription status.** `Sequence Diagram` sets out what the return value of
-  `json_hal_client_subscribe_event()` proves about the server's `result`.
+- **Subscription status.** `json_hal_client_subscribe_event()` returns `RETURN_OK` without reading
+  `Result.Status`, so success shows that the callback is registered, not that the vendor accepted
+  the subscription, and the call leaves no reply for `json_hal_get_result_status()`. Callback
+  registration happens only inside that function, so a caller that also needs the status sends its
+  own `subscribeEvent` through `json_hal_client_send_and_get_reply()` and reads that reply; the
+  server can record it as a further subscription. `Event Model` in
+  [halSpecDetailed.md](halSpecDetailed.md) compares the two routes.
 
 Events are delivered into the callback surface declared in
 `source/TR-181/integration_src.shared/xdsl_hal.h`: `dsl_link_status_callback`, installed by
@@ -204,13 +219,21 @@ transport's.
 
 ### Blocking calls
 
-**The synchronous reply path blocks by design.** `json_hal_client_send_and_get_reply()` blocks the
-calling thread until the matching reply arrives or a deadline of approximately 10 seconds expires,
-and `json_hal_client_send_and_get_reply_with_timeout()` takes a deadline in seconds that is clamped
-to the range 10 to 120 seconds. The client socket thread counts the deadline down, so it applies only
-while that thread is running and is an upper bound rather than a guaranteed wait. A caller must not
-issue a request from an event callback, which runs on that same thread. Event delivery is
-asynchronous: `publishEvent` messages arrive on the client socket thread, not on the caller's.
+**The synchronous reply path blocks by design.** `json_hal_client_send_and_get_reply()` and
+`json_hal_client_send_and_get_reply_with_timeout()` block the calling thread until the matching reply
+arrives or the request's tick budget runs out. The client socket thread spends one tick of every
+pending request per pass of its receive loop, a pass waiting up to 250 ms for data: the default
+budget of 40 ticks is nominally 10 seconds, and `json_hal_client_send_and_get_reply_with_timeout()`
+converts its timeout in seconds to a budget clamped to 40 to 480 ticks, nominally 10 to 120 seconds.
+
+**The budgets are nominal, not elapsed-time bounds.** The caller's wait itself is untimed. Socket
+traffic shortens a pass, so a request can expire sooner, and event-callback work lengthens one; no
+tick is counted while the socket thread is not running or is reassembling a reply after a read that
+fills its 16384-byte buffer, so a wait can continue indefinitely. A caller that needs a hard deadline
+enforces it independently of the transport, and `Blocking and timeouts` in
+[halSpecDetailed.md](halSpecDetailed.md) gives the tick arithmetic. A caller must not issue a request
+from an event callback: the socket thread the callback runs on could then neither receive the reply
+nor count the request down.
 
 ### Internal Error Handling
 
@@ -219,27 +242,23 @@ A `result` message answers `setParameters`, `deleteObject` and `subscribeEvent`,
 
 | `Result.Status` | Meaning | Caller action |
 | --- | --- | --- |
-| `Success` | The request was carried out. This is the schema default. | Proceed. |
-| `Failed` | The request was understood but could not be carried out. | Treat as a runtime failure; a retry may succeed if the cause was transient. |
+| `Success` | The vendor handler reported success. This acknowledges the request; it does not prove that a write was applied. This is the schema default. | Proceed; where the effect of a write matters, read the parameter back. |
+| `Failed` | The vendor handler reported failure. The transport sends it when a registered action handler returns failure, and a vendor handler may also write it directly. It does not prove that nothing was applied. | Treat as a runtime failure. Before resending a `setParameters`, `deleteObject` or `subscribeEvent`, read the affected state back (`Retry behaviour on the write path` in [halSpecDetailed.md](halSpecDetailed.md)). |
 | `Invalid Argument` | The request was malformed or a value was outside its constraint. The pinned transport never constructs it; only a vendor handler that writes it directly sends it. | Correct the request against [halSpecDetailed.md](halSpecDetailed.md); do not retry it unchanged. |
-| `Not Supported` | The server does not implement the parameter or action. | Do not retry; treat the parameter as absent on this platform. |
+| `Not Supported` | The server has no handler for the action, or the vendor does not support the parameter or action. A server built with `JSON_SCHEMA_VALIDATION_ENABLED` also sends it in place of a handler's reply that fails schema validation, after the handler has run, so a write, delete or subscription may already have taken effect. | Do not conclude from this status alone that nothing was applied or that the parameter is absent. Read the affected state back before resending a `setParameters`, `deleteObject` or `subscribeEvent`, or ceasing to use the parameter (`Retry behaviour on the write path` in [halSpecDetailed.md](halSpecDetailed.md)). |
 
 The transport's handling of a request decides what a caller sees:
 
 - **A malformed request gets no reply.** The pinned server validates no inbound message: a request
-  that is not parseable JSON, or that lacks `reqId` or `action`, is discarded without a reply, and
-  the caller waits out the full deadline. `module` and `version` are not checked, and parameter
-  values reach the vendor handler unvalidated.
-- **Unknown actions and handler failures are answered generically.** An action with no registered
-  handler is answered `Not Supported`, and a handler that fails is answered `Failed`. A library built
-  with `JSON_SCHEMA_VALIDATION_ENABLED` also validates each outgoing reply and replaces an invalid
-  one with `Not Supported`.
+  that is not parseable JSON, or that lacks `reqId` or `action`, is discarded without a reply, so
+  the call ends only when its tick budget runs out (**Blocking calls**). `module` and `version` are
+  not checked, and parameter values reach the vendor handler unvalidated.
 - **The sender validates.** A caller validates its requests against `hal_schema/xdsl_hal_schema.json`
   before sending them, and a vendor server applies the parameter constraints in its handlers.
 - **Read `Result.Status` directly to tell the statuses apart.** `json_hal_get_result_status()`
-  reduces a `result` to true or false, so `Invalid Argument` and `Not Supported` are
-  indistinguishable through it, and `json_rpc_common.h` defines constants for the other three
-  statuses only.
+  reduces a `result` to true or false, so `Failed`, `Invalid Argument` and `Not Supported` are
+  indistinguishable through it, and `json_rpc_common.h` defines constants for `Success`, `Failed`
+  and `Not Supported` only, so `Invalid Argument` is compared as a literal.
 
 Vendor servers report internal failures through `Result.Status` rather than by closing the
 connection or omitting a reply, and log any failure that cannot be expressed as a status with the
@@ -277,8 +296,8 @@ and listed in descending order of severity:
 - **TRACE:** fine-grained tracing of internal flow.
 
 Each entry should carry a timestamp, the level and a message describing the event. An entry
-describing a message exchange should include its `reqId`, the only field that ties a reply to its
-request. A vendor server should write its log file under `/var/tmp/` or `/rdklogs/logs/`, following
+describing a message exchange should include its `reqId`, which correlates a reply with its
+request (**Method Sequencing**). A vendor server should write its log file under `/var/tmp/` or `/rdklogs/logs/`, following
 the RDK-B HAL convention. The manager logs through `CcspTraceError` and `CcspTraceInfo` and emits the
 telemetry markers `RDKB_XDSL_LINE_CFG_CHANGED`, `RDKB_XDSL_CHANNEL_CFG_CHANGED`,
 `RDKB_XDSL_LINE_STATUS_CB` and `RDKB_XDSL_SM_TRANSITION`.
@@ -406,10 +425,9 @@ Using the interface takes three steps:
 
 ### Theory of operation and key concepts
 
-Every interaction is a single JSON object sent over the socket. Four fields are required on every
-message — `module`, `version`, `action` and `reqId` — and `action` determines which payload, if any,
-the message carries. A caller sends a request and receives either a response action or a generic
-`result`.
+Every interaction is a single JSON object sent over the socket, carrying the envelope and the payload
+set out in **Data Structures and Defines**. A caller sends a request and receives either a response
+action or a generic `result`.
 
 The interface is a **projection of the TR-181 data model onto that message exchange.** There are no
 functions to call and no handles to hold: a parameter is addressed by its TR-181 path as a string,
@@ -440,9 +458,9 @@ schema but still reaches the vendor's `deleteObject` handler, which alone can re
   configured one, as [halSpecDetailed.md](halSpecDetailed.md) records.
 - **The caller sends `subscribeEvent` before expecting `publishEvent`.** Events are delivered only to a subscribed
   caller, and only two parameters may be subscribed.
-- **Correlation is by `reqId`.** A response carries the `reqId` of the request it answers. A caller
-  issuing concurrent requests uses distinct values and does not assume that replies arrive in the
-  order the requests were sent.
+- **Correlation is by `reqId`.** A response carries the `reqId` of the request it answers, which is
+  how the client matches it to the waiting call. Distinct identifiers do not make concurrent
+  submission safe: exchanges follow the serialization rule in **Threading Model**.
 
 #### State-Dependent Behavior
 
@@ -457,74 +475,31 @@ enumerations.
 
 ### Data Structures and Defines
 
-A JSON HAL has no header, so the analogue of a header's public types is the set of schema
-definitions a caller constructs or interprets. The envelope is the part every message shares.
+A JSON HAL has no header, so its public types are the schema definitions a caller constructs or
+interprets. `Transport and Protocol` in [halSpecDetailed.md](halSpecDetailed.md) gives their full
+constraints and the members each action requires.
 
-| Field | Schema definition | Constraint |
-| --- | --- | --- |
-| `module` | `moduleName` | `const` `xdslhal` |
-| `version` | `schemaVersion` | `const` `0.0.1` |
-| `action` | `action` | one of eleven enumerated values |
-| `reqId` | inline | `type` `string`, `pattern` `^[0-9]+$` |
-
-**The `reqId` field is a numeric string, not an integer.** `"reqId": "100001"` is valid and `"reqId": 100001`
-fails validation; this is the most easily made mistake in the envelope.
-
-Three payload carriers exist, each bound to particular actions:
-
-- `params` — an array of parameter entries, carried by `getParameters`,
-  `getParametersResponse`, `setParameters`, `subscribeEvent`, `publishEvent` and `deleteObject`.
-- `Result` — an object whose only property is `Status`, drawn from `resultStatusEnumList`, carried
-  by `result`.
-- `SchemaInfo` — an object whose only property is `FilePath`, carried by `getSchemaResponse`.
-  Its pattern, `^(.+)/([^/]+)$`, requires only one `/` with characters on both sides, so all three
-  values below satisfy it:
-
-```text
-../../../etc/shadow
-//host/share/x.json
-http://user:password@host/x.json
-```
-
-The schema therefore gives a caller no protection here, and the caller applies the comparison rule in
-**Method Sequencing** itself.
-
-A parameter entry has up to four properties, and which are required depends on the action:
-
-| Property | Purpose | Required by |
-| --- | --- | --- |
-| `name` | the TR-181 path, a `const` or a `pattern` | every action carrying `params` |
-| `type` | the TR-181 datatype label | `setParameters`, `getParametersResponse` |
-| `value` | the value, constrained per parameter | `setParameters`, `getParametersResponse`, `publishEvent` |
-| `notificationType` | `interval` or `onChange`, default `onChange`; defined only on `dslLineLinkStatus` and `fastLineLinkStatus` | `subscribeEvent` |
-
-The `type` label takes one of seven values, each stated as a `const` on the definition's `type`
-property. The transport's parallel enumeration, `eParamType` in `json-hal-library`, has **eight**
-members, including a `long` this schema never uses, so a caller mapping between the two does not
-expect a bijection.
-
-| `type` label | Count | Transport counterpart |
-| --- | --- | --- |
-| `unsignedInt` | 173 | `PARAM_UNSIGNED_INTEGER` |
-| `string` | 85 | `PARAM_STRING` |
-| `unsignedLong` | 40 | `PARAM_UNSIGNED_LONG` |
-| `int` | 30 | `PARAM_INTEGER` |
-| `boolean` | 18 | `PARAM_BOOLEAN` |
-| `hexBinary` | 12 | `PARAM_HEXBINARY` |
-| `base64` | 8 | `PARAM_BASE64` |
-
-Those seven account for 366 of the 369 parameter definitions. The remaining three, all bonding-group
-parameters, constrain `type` with an inline enumeration instead of a `const`, so a caller reading the
-datatype label programmatically handles both forms. A `hexBinary` value is further constrained by
-`typeHex`, whose pattern `^([a-fA-F0-9]{2})+$` requires an even number of hexadecimal digits.
-
-On the client side, `hal_config_t` holds the module name, module version, schema path, server port
-and request timeout period, loaded from a file with the keys `hal_schema_path` and `server_port`. A
-parameter in transit is a `hal_param_t`, whose size limits are given under **Memory Model**.
-
-The schema defines eleven enumerated value lists, catalogued with their members in the
-`Enumeration Appendix` of [halSpecDetailed.md](halSpecDetailed.md); the two that describe line and
-link state are compared under **State Diagram**.
+- **Envelope.** Every message carries `module`, the `moduleName` `const` `xdslhal`; `version`, the
+  `schemaVersion` `const` `0.0.1`; `action`, one of the eleven members in **API Surface**; and
+  `reqId`, a numeric string matching `^[0-9]+$` and not an integer, so `"reqId": "100001"` is valid
+  and `"reqId": 100001` is not.
+- **Payload carriers.** `params` is an array of parameter entries, `Result` an object whose only
+  property is `Status`, a `resultStatusEnumList` member, and `SchemaInfo` an object whose only
+  property is `FilePath`; the **API Surface** table shows which action carries which. The `FilePath`
+  pattern, `^(.+)/([^/]+)$`, requires only a `/` with characters on both sides, so it gives a caller
+  no path protection and the comparison rule in **Method Sequencing** applies.
+- **Parameter datatypes.** An entry's `type` label is one of seven values — `boolean`, `string`,
+  `int`, `unsignedInt`, `unsignedLong`, `hexBinary` and `base64` — each mapping to an `eParamType`
+  member in `json-hal-library`, which adds a `long` this schema does not use; a `hexBinary` value
+  also matches `typeHex`, an even number of hexadecimal digits. Three bonding-group definitions
+  constrain `type` with an inline enumeration instead (`Contract Defects` in
+  [halSpecDetailed.md](halSpecDetailed.md)), and `Parameter Reference` gives each parameter's type.
+- **Client types.** `hal_config_t` holds the client configuration, including the `hal_schema_path`
+  and `server_port` values read from the configuration file, and a parameter in transit is a
+  `hal_param_t`, whose size limits are given under **Memory Model**.
+- **Enumerations.** The schema defines eleven enumerated value lists, catalogued in the
+  `Enumeration Appendix` of [halSpecDetailed.md](halSpecDetailed.md); **State Diagram** compares the
+  two that describe line and link state.
 
 ### API Surface
 
@@ -547,8 +522,7 @@ link state are compared under **State Diagram**.
 
 Three facts about this vocabulary are easy to get wrong:
 
-- **There is no `setParametersResponse`.** A write is acknowledged by the generic `result` action. A
-  caller waiting for a symmetrically named response waits out the deadline in **Blocking calls**.
+- **There is no `setParametersResponse`.** A write is acknowledged by the generic `result` action.
 - **The `deleteObject` action is instantiable in this schema**, unlike in the GPON and telco voice JSON HALs,
   but for DSL line instances only, per **Object Lifecycles**.
 - **The `getActiveSubscriptionsResponse` action has no payload binding**, so a caller must not infer a `params`
@@ -604,29 +578,17 @@ sequenceDiagram
     Cli-->>Mgr: event callback on the client socket thread
 ```
 
-Three details in the diagram are contractual:
+Two details in the diagram are contractual:
 
-- **The reply carries the request's `reqId`**, the only correlation mechanism.
 - **The `json_hal_client_subscribe_event()` function takes three arguments** — the callback, the event name and
   the notification type — as `json_hal_client.h` declares. The two-argument form in the
   `json-hal-library` README does not compile.
-- **The reply's `action` decides the helper.** A `getParametersResponse` carries a `params` array,
-  and each entry is read with `json_hal_get_param()`. It carries no `Result`, and
-  `json_hal_get_result_status()` called on it returns `RETURN_ERR` without writing its output
-  `status`, so a caller that checks only `status` reads an uninitialised value.
-  `json_hal_get_result_status()` belongs to a `result` reply, such as the reply to `setParameters`
-  or `deleteObject`.
+- **The reply's `action` decides the helper.** Read a `getParametersResponse` entry with
+  `json_hal_get_param()`, and call `json_hal_get_result_status()` only on a `result` reply, such as
+  the reply to `setParameters` or `deleteObject`, checking its return code before reading `status`,
+  which it leaves unwritten on any other reply.
 
-**A successful subscription proves that delivery is registered, not that the vendor accepted it.**
-`json_hal_client_subscribe_event()` sends `subscribeEvent`, releases the reply without reading
-`Result.Status`, registers the callback and returns `RETURN_OK`, so a server answering `Failed` or
-`Not Supported` still yields `RETURN_OK`. A caller therefore does not call
-`json_hal_get_result_status()` after subscribing: no reply from the subscription is in scope, and an
-earlier reply would report a different exchange as though it were the subscription's. Callback
-registration happens only inside `json_hal_client_subscribe_event()`, so a caller that also needs
-the status sends a second, hand-built `subscribeEvent` through
-`json_hal_client_send_and_get_reply()` and reads the status from that reply; the server records it
-as a further subscription.
+**Asynchronous Notification Model** sets out what the subscription's `RETURN_OK` proves.
 
 ### State Diagram
 
@@ -684,8 +646,9 @@ reachability and reads `LinkStatus` for line progress.
 - [rdkcentral/xdsl-manager/LICENSE](https://github.com/rdkcentral/xdsl-manager/blob/main/LICENSE) — licence
 - [rdkcentral/xdsl-manager/CHANGELOG.md](https://github.com/rdkcentral/xdsl-manager/blob/main/CHANGELOG.md) — release history
 - [rdkcentral/json-hal-library/json_hal_client.h](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_client.h) — client API
-- [rdkcentral/json-hal-library/json_hal_client.c](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_client.c) — reply deadlines, subscription and result helpers
+- [rdkcentral/json-hal-library/json_hal_client.c](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_client.c) — reply tick budgets, subscription and result helpers
 - [rdkcentral/json-hal-library/json_hal_common.h](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_common.h) — `hal_config_t`, `hal_param_t` and `eParamType`
+- [rdkcentral/json-hal-library/json_hal_common.c](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_common.c) — parameter helpers
 - [rdkcentral/json-hal-library/json_hal_server.h](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_server.h) — server API and `JSON_BLOCKING_SUBSCRIBE_EVENT`
 - [rdkcentral/json-hal-library/json_hal_server.c](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json_hal_server.c) — request dispatch and generic replies
 - [rdkcentral/json-hal-library/json-rpc-common/json_rpc_common.h](https://github.com/rdkcentral/json-hal-library/blob/86a0a300b976f8e3295064af8fb3fd1c793c9e64/json-rpc-common/json_rpc_common.h) — status constants and buffer size

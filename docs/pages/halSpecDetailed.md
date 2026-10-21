@@ -53,24 +53,26 @@ and for every action. The schema root requires all four fields.
 The root declares `properties` for these four fields only and sets no `additionalProperties: false`, so
 any further top-level member is accepted unvalidated and carries no meaning.
 
-**Payloads are bound by action.** The schema's `allOf` holds eight `if action == X then …` branches.
-Each names the member the payload travels in, requires it, and constrains it to a `uniqueItems` array
-with `minItems` 1 whose items must satisfy an item-level `required` list and an ordered `anyOf` over
-the reference lists. **An empty `params` array, and two identical entries in one array, are invalid.**
+**Payloads are bound by action.** The schema's `allOf` holds eight `if action == X then …` branches,
+each naming and requiring the member the payload travels in. The six that bind `params` constrain it
+to a `uniqueItems` array with `minItems` 1 whose items must satisfy an item-level `required` list and
+an ordered `anyOf` over the reference lists: **for these six, an empty `params` array, and two
+identical entries in one array, are invalid.** `result` and `getSchemaResponse` bind an object
+instead — `Result` and `SchemaInfo` respectively — and leave `params` unconstrained.
 
-| Action | Direction | Bound member | Required members | `anyOf` resolves to |
-| --- | --- | --- | --- | --- |
-| `getSchema` | `RdkXdslManager` to vendor server | none | — | — |
-| `getSchemaResponse` | vendor server to `RdkXdslManager` | `SchemaInfo` (object, `additionalProperties` false) | on the object: `FilePath`, matching `^(.+)/([^/]+)$` | — |
-| `getParameters` | `RdkXdslManager` to vendor server | `params` | per item: `name` | `getParameterSupportedList`, `getParameterOptionalList` |
-| `getParametersResponse` | vendor server to `RdkXdslManager` | `params` | per item: `name`, `type`, `value` | `getParameterSupportedList`, `getParameterOptionalList` |
-| `setParameters` | `RdkXdslManager` to vendor server | `params` | per item: `name`, `type`, `value` | `setParameterSupportedList`, `setParameterOptionalList` |
-| `result` | vendor server to `RdkXdslManager` | `Result` (object, `additionalProperties` false) | on the object: `Status`, a `resultStatusEnumList` member | — |
-| `subscribeEvent` | `RdkXdslManager` to vendor server | `params` | per item: `name`, `notificationType` | `subscribeEventSupportedList` |
-| `publishEvent` | vendor server to `RdkXdslManager` | `params` | per item: `name`, `value` | `subscribeEventSupportedList` |
-| `deleteObject` | `RdkXdslManager` to vendor server | `params` | per item: `name` | `dslLineObjectName` |
-| `getActiveSubscriptions` | `RdkXdslManager` to vendor server | none | — | — |
-| `getActiveSubscriptionsResponse` | vendor server to `RdkXdslManager` | none | — | — |
+| Action | Direction | Bound member and required fields | `anyOf` resolves to |
+| --- | --- | --- | --- |
+| `getSchema` | `RdkXdslManager` to vendor server | none | — |
+| `getSchemaResponse` | vendor server to `RdkXdslManager` | `SchemaInfo` (object, `additionalProperties` false), requiring `FilePath` matching `^(.+)/([^/]+)$` | — |
+| `getParameters` | `RdkXdslManager` to vendor server | `params`, each item requiring `name` | `getParameterSupportedList`, `getParameterOptionalList` |
+| `getParametersResponse` | vendor server to `RdkXdslManager` | `params`, each item requiring `name`, `type`, `value` | `getParameterSupportedList`, `getParameterOptionalList` |
+| `setParameters` | `RdkXdslManager` to vendor server | `params`, each item requiring `name`, `type`, `value` | `setParameterSupportedList`, `setParameterOptionalList` |
+| `result` | vendor server to `RdkXdslManager` | `Result` (object, `additionalProperties` false), requiring `Status`, a `resultStatusEnumList` member | — |
+| `subscribeEvent` | `RdkXdslManager` to vendor server | `params`, each item requiring `name`, `notificationType` | `subscribeEventSupportedList` |
+| `publishEvent` | vendor server to `RdkXdslManager` | `params`, each item requiring `name`, `value` | `subscribeEventSupportedList` |
+| `deleteObject` | `RdkXdslManager` to vendor server | `params`, each item requiring `name` | `dslLineObjectName` |
+| `getActiveSubscriptions` | `RdkXdslManager` to vendor server | none | — |
+| `getActiveSubscriptionsResponse` | vendor server to `RdkXdslManager` | none | — |
 
 The item-level `required` list is the only source of mandatory entry fields: no parameter or object
 definition declares a `required` of its own, and only `result` and `getSchemaResponse` do.
@@ -87,8 +89,8 @@ definition declares a `required` of its own, and only `result` and `getSchemaRes
   `getActiveSubscriptions` or `getActiveSubscriptionsResponse` is accepted with any contents, and
   `getActiveSubscriptionsResponse` has no schema member for a subscription list.
 - **The `json_hal_client_get_request_header` function adds an empty `params` array to every action whose name does
-  not begin with `getSchema`.** Populate it before sending a bound action: an empty array fails
-  `minItems` 1.
+  not begin with `getSchema`.** Populate it before sending an action that binds `params`: an empty
+  array fails `minItems` 1.
 - **The two get actions validate only within the first 39 references of
   `getParameterSupportedList`.** Its entries 40 and 41 are undefined, so most `getParameters` and
   `getParametersResponse` entries end in a reference error rather than a verdict (Contract Defects 1).
@@ -121,7 +123,7 @@ sequenceDiagram
     Mgr->>Cli: json_hal_client_send_and_get_reply(request, &reply)
     Cli->>Srv: module xdslhal, version 0.0.1, action getParameters, reqId 1001, params
     Srv->>Cli: action getParametersResponse, reqId 1001, params with type and value
-    Cli->>Mgr: reply, after at most the 40-tick default window
+    Cli->>Mgr: reply matched by reqId, or RETURN_ERR once the nominal 40-tick budget expires
     Mgr->>Cli: json_hal_get_param(reply, index, GET_RESPONSE_MESSAGE, &param)
     Note over Mgr: a response carries params, so it is read by count and index
     Mgr->>Cli: json_hal_client_send_and_get_reply(setParameters, &reply)
@@ -139,10 +141,10 @@ leaves the caller's flag unwritten.
 **Transport constants.** `json-rpc-common/json_rpc_common.h` in `json-hal-library` covers the protocol
 only partly:
 
-- Five actions have a constant — `JSON_RPC_ACTION_GET_PARAM`, `JSON_RPC_ACTION_GET_PARAM_RESPONSE`,
-  `JSON_RPC_ACTION_RESULT`, `JSON_RPC_ACTION_GET_SCHEMA` and `JSON_RPC_ACTION_GET_SCHEMA_RESPONSE`.
-  Pass `setParameters`, `subscribeEvent`, `publishEvent`, `deleteObject`, `getActiveSubscriptions` and
-  `getActiveSubscriptionsResponse` as literals.
+- Seven actions have a constant — `JSON_RPC_ACTION_GET_PARAM`, `JSON_RPC_ACTION_GET_PARAM_RESPONSE`,
+  `JSON_RPC_ACTION_RESULT`, `JSON_RPC_ACTION_GET_SCHEMA`, `JSON_RPC_ACTION_GET_SCHEMA_RESPONSE`,
+  `JSON_RPC_SUBSCRIBE_EVENT_ACTION_NAME` and `JSON_RPC_PUBLISH_EVENT_ACTION_NAME`. Pass `setParameters`,
+  `deleteObject`, `getActiveSubscriptions` and `getActiveSubscriptionsResponse` as literals.
 - Three result statuses have a constant — `JSON_RPC_STATUS_SUCCESS`, `JSON_RPC_STATUS_FAILED` and
   `JSON_RPC_STATUS_NOT_SUPPORTED`. Compare `Invalid Argument` as a literal string.
 - `JSON_RPC_FIELD_CONFIGURE_OBJECT` names `configureObject`, which is **not** an `action` member; a
@@ -228,10 +230,10 @@ unchecked (Error Handling, Validation boundary). An object definition is the pay
 
 Each table has four columns:
 
-- `TR-181 Parameter` — the path or paths the definition binds, with `{i}` for the schema's `\d+`
-  instance index, then ` · ` and the definition key. An alternating definition carries every path it
-  matches or, where the product runs to dozens of paths, the exact pattern with every alternative
-  enumerated, followed by its path count.
+- `TR-181 Parameter · definition key` — the path or paths the definition binds, with `{i}` for the
+  schema's `\d+` instance index, then ` · ` and the definition key. An alternating definition carries
+  every path it matches or, where it binds more than a handful, the exact pattern with every
+  alternative enumerated; its path count follows the key.
 - `Type and Constraint` — the `type` the schema fixes, then the `value` constraint: the referenced
   enumeration (`$ref`), range, length, pattern, default and any `examples`.
 - `Access` — `RW` or `RW (optional)` for a definition in `setParameterSupportedList` or
@@ -330,7 +332,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *113 parameter definitions binding 136 name paths.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.DSL.Line.{i}.ACTINPROCds` · `dslLineACTINPROCds` | `unsignedInt`; JSON `integer`; min `0` | R (optional) | This parameter reports the actual impulse noise protection (INP) of the robust overhead channel (ROC) in the downstream direction. `[Device:2.13]` |
 | `Device.DSL.Line.{i}.ACTINPROCus` · `dslLineACTINPROCus` | `unsignedInt`; JSON `integer`; min `0` | R (optional) | This parameter reports the actual impulse noise protection (INP) of the robust overhead channel (ROC) in the upstream direction. `[Device:2.13]` |
@@ -450,7 +452,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *25 parameter definitions binding 55 name paths.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.DSL.Channel.{i}.ACTINP` · `dslChannelACTINP` | `int`; JSON `integer`, otherwise unconstrained | R | Reports the actual impulse noise protection (INP) provided by the latency path indicated in LPATH. The value is the actual INP in the L0 (i.e., Showtime) state. `[Device:2.13]` |
 | `Device.DSL.Channel.{i}.ACTINPREIN` · `dslChannelACTINPREIN` | `unsignedInt`; JSON `integer`; `0`..`255` | R (optional) | Actual impulse noise protection against REIN, expressed in 0.1 DMT symbols. Units: 0.1 DMT symbols. `[Device:2.13]` |
@@ -474,7 +476,7 @@ That is 393 read references and 24 write references. The two dangling references
 | `Device.DSL.Channel.{i}.Stats.CurrentDay.X_RDK_InitTimeouts` · `dslChannelStatsCurrentDayX_RDK_InitTimeouts` | `unsignedInt`; JSON `integer`; min `0` | R (optional) | RDK vendor extension declared in `RdkXdslManager.xml` and `xdsl_apis.h`. Semantics **underived**. |
 | `Device.DSL.Channel.{i}.Stats.CurrentDay.X_RDK_LinkRetrain`, `Device.DSL.Channel.{i}.Stats.QuarterHour.X_RDK_LinkRetrain` · `dslChannelStatsCurDayQHourX_RDK_LinkRetrain` · **2 paths** | `unsignedInt`; JSON `integer`; min `0` | R (optional) | RDK vendor extension declared in `RdkXdslManager.xml` and `xdsl_apis.h`. Semantics **underived**. |
 | `Device.DSL.Channel.{i}.Stats.CurrentDay.X_RDK_SeverelyErroredSecs` · `dslChannelStatsCurrentDayX_RDK_SeverelyErroredSecs` | `unsignedInt`; JSON `integer`; min `0` | R (optional) | RDK vendor extension declared in `RdkXdslManager.xml` and `xdsl_apis.h`; do not assume it equals the `Device:2.13` `SeverelyErroredSecs` of the same interval object. Semantics **underived**. |
-| `channelStatsAllErrors` · **30 paths**, from `Device.DSL.Channel.{i}.Stats.Total.XTURFECErrors` to `Device.DSL.Channel.{i}.Stats.QuarterHour.XTUCCRCErrors` · every path is listed under Alternating path expansions | `unsignedInt`; JSON `integer`; min `0` | R | Total number of FEC errors detected (FEC-C as defined in ITU-T Rec. G.997.1). Note: If the parameter is implemented but no value is available, its value MUST be 4294967295 (the maximum for its data type). **Expansion — 30 paths:** the five interval segments (`Total`, `Showtime`, `LastShowtime`, `CurrentDay`, `QuarterHour`) × the six error counters (`XTURFECErrors`, `XTUCFECErrors`, `XTURHECErrors`, `XTUCHECErrors`, `XTURCRCErrors`, `XTUCCRCErrors`). `[Device:2.13]` |
+| `^Device\.DSL\.Channel\.\d+\.Stats\.(Total\|Showtime\|LastShowtime\|CurrentDay\|QuarterHour)\.(XTURFECErrors\|XTUCFECErrors\|XTURHECErrors\|XTUCHECErrors\|XTURCRCErrors\|XTUCCRCErrors)$` · `channelStatsAllErrors` · **30 paths** · every path is listed under Alternating path expansions | `unsignedInt`; JSON `integer`; min `0` | R | Total number of FEC errors detected (FEC-C as defined in ITU-T Rec. G.997.1). Note: If the parameter is implemented but no value is available, its value MUST be 4294967295 (the maximum for its data type). **Expansion — 30 paths:** the five interval segments (`Total`, `Showtime`, `LastShowtime`, `CurrentDay`, `QuarterHour`) × the six error counters (`XTURFECErrors`, `XTUCFECErrors`, `XTURHECErrors`, `XTUCHECErrors`, `XTURCRCErrors`, `XTUCCRCErrors`). `[Device:2.13]` |
 | `Device.DSL.Channel.{i}.Status` · `dslChannelStatus` | `string`; `$ref` `lineStatusEnumList` | R | The current operational state of the channel (see TR-181i2). When Enable is false then this parameter SHOULD normally be Down (or NotPresent or Error if there is a fault condition on the interface). `[Device:2.13]` |
 | `Device.DSL.Channel.{i}.UpstreamCurrRate` · `dslChannelUpstreamCurrRate` | `unsignedInt`; JSON `integer`; min `0` | R | The current physical layer aggregate data rate (expressed in Kbps) of the upstream DSL connection. Units: Kbps. `[Device:2.13]` |
 
@@ -482,7 +484,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *40 parameter definitions binding 71 name paths.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.DSL.BondingGroup.{i}.BondScheme` · `dslBondingGroupBondScheme` | `type` one of `ATM`/`Ethernet`/`TDIM`; JSON `string`, otherwise unconstrained | R | Currently operating bonding scheme. Corresponds to TR-159 aGroupOperBondScheme. `[Device:2.13]` |
 | `Device.DSL.BondingGroup.{i}.BondSchemesSupported` · `dslBondingGroupBondSchemesSupported` | `type` one of `ATM`/`Ethernet`/`TDIM`; JSON `string`, otherwise unconstrained | R | Comma-separated list. Supported DSL bonding schemes. Corresponds to TR-159 oBondingGroup.aGroupBondSchemesSupported. `[Device:2.13]` |
@@ -513,7 +515,7 @@ That is 393 read references and 24 write references. The two dangling references
 | `Device.DSL.BondingGroup.{i}.Stats.QuarterHourStart` · `bondingGroupStatsQuarterHourStart` | `unsignedInt`; JSON `integer`; min `0` | R | DSL-specific statistic. The Number of seconds since the beginning of the period used for collection of QuarterHour statistics. Units: seconds. `[Device:2.13]` |
 | `Device.DSL.BondingGroup.{i}.Stats.ShowtimeStart` · `bondingGroupStatsShowtimeStart` | `unsignedInt`; JSON `integer`; min `0` | R | Declared as `ShowtimeStart` under the bonding-group statistics object in `RdkXdslManager.xml` and as `DML_XDSL_BONDING_GROUP_STATS.ShowtimeStart` in `xdsl_apis.h`. Semantics **underived**. |
 | `Device.DSL.BondingGroup.{i}.Stats.Total.FailureReasons`, `Device.DSL.BondingGroup.{i}.Stats.CurrentDay.FailureReasons`, `Device.DSL.BondingGroup.{i}.Stats.QuarterHour.FailureReasons` · `bondingGroupStatsAllErrorsFailureReasons` · **3 paths** | `unsignedInt`; JSON `string`; one of `LowRate`, `ExcessiveDelay`, `InsufficientBuffers`, `Other` | R | Comma-separated list. Indicates the failure conditions that have occurred during the accumulation period. `[Device:2.13]` |
-| `bondingGroupStatsAllErrors` · **30 paths**, from `Device.DSL.BondingGroup.{i}.Stats.Total.UpstreamRate` to `Device.DSL.BondingGroup.{i}.Stats.QuarterHour.UnavailableSeconds` · every path is listed under Alternating path expansions | `unsignedInt`; JSON `integer`; min `0` | R | The achieved upstream data rate in bits per second (which might change subject to dynamic link usage conditions). Units: bits per second. **Expansion — 30 paths:** the three interval segments (`Total`, `CurrentDay`, `QuarterHour`) × the ten metrics (`UpstreamRate`, `DownstreamRate`, `UpstreamPacketLoss`, `DownstreamPacketLoss`, `UpstreamDifferentialDelay`, `DownstreamDifferentialDelay`, `FailureCount`, `ErroredSeconds`, `SeverelyErroredSeconds`, `UnavailableSeconds`). `[Device:2.13]` |
+| `^Device\.DSL\.BondingGroup\.\d+\.Stats\.(Total\|CurrentDay\|QuarterHour)\.(UpstreamRate\|DownstreamRate\|UpstreamPacketLoss\|DownstreamPacketLoss\|UpstreamDifferentialDelay\|DownstreamDifferentialDelay\|FailureCount\|ErroredSeconds\|SeverelyErroredSeconds\|UnavailableSeconds)$` · `bondingGroupStatsAllErrors` · **30 paths** · every path is listed under Alternating path expansions | `unsignedInt`; JSON `integer`; min `0` | R | The achieved upstream data rate in bits per second (which might change subject to dynamic link usage conditions). Units: bits per second. **Expansion — 30 paths:** the three interval segments (`Total`, `CurrentDay`, `QuarterHour`) × the ten metrics (`UpstreamRate`, `DownstreamRate`, `UpstreamPacketLoss`, `DownstreamPacketLoss`, `UpstreamDifferentialDelay`, `DownstreamDifferentialDelay`, `FailureCount`, `ErroredSeconds`, `SeverelyErroredSeconds`, `UnavailableSeconds`). `[Device:2.13]` |
 | `Device.DSL.BondingGroup.{i}.Stats.TotalStart` · `bondingGroupStatsTotalStart` | `unsignedInt`; JSON `integer`; min `0` | R | DSL-specific statistic. The Number of seconds since the beginning of the period used for collection of Total statistics. Units: seconds. `[Device:2.13]` |
 | `Device.DSL.BondingGroup.{i}.Stats.UnicastPacketsReceived` · `bondingGroupStatsUnicastPacketsReceived` | `unsignedLong`; JSON `integer`; min `0` | R | The total number of received packets, delivered by this layer to a higher layer, which were not addressed to a multicast or broadcast address at this layer. `[Device:2.13]` |
 | `Device.DSL.BondingGroup.{i}.Stats.UnicastPacketsSent` · `bondingGroupStatsUnicastPacketsSent` | `unsignedLong`; JSON `integer`; min `0` | R | The total number of packets requested for transmission which were not addressed to a multicast or broadcast address at this layer, including those that were discarded or not sent. `[Device:2.13]` |
@@ -529,7 +531,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *62 parameter definitions, each binding one path.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.DSL.Diagnostics.ADSLLineTest.ACTATPds` · `dslADSLLineTestACTATPds` | `int`; JSON `integer`; min `0` | R | Downstream actual aggregate transmitter power. Interpretation of the value is as defined in ITU-T Rec. G.997.1. This path is bound twice, by this definition and by `dslADSLLineTestACTATPus` (see Contract Defects). `[Device:2.13]` |
 | `Device.DSL.Diagnostics.ADSLLineTest.ACTATPds` · `dslADSLLineTestACTATPus` | `int`; JSON `integer`; min `0` | R | Downstream actual aggregate transmitter power. Interpretation of the value is as defined in ITU-T Rec. G.997.1. **This definition binds the downstream path**: its `name` pattern is identical to `dslADSLLineTestACTATPds`, so the description above is the one Device:2.13 gives for `ACTATPds`. The upstream parameter this definition was named for, `ACTATPus`, is therefore not expressible in any schema-valid message; `Contract Defects` entry 5 states the absent path in full and the test exclusion it forces. `[Device:2.13]` |
@@ -598,7 +600,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *1 parameter definition, binding one path.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.DSL.X_RDK_NLNM.echotonoiseratio` · `dslX_RDK_NLNMechotonoiseratio` | `int`; JSON `integer`, otherwise unconstrained | R (optional) | RDK vendor extension declared as `echotonoiseratio` in `RdkXdslManager.xml` and as a signed integer in `xdsl_apis.h`. Semantics **underived**. |
 
@@ -606,7 +608,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *61 parameter definitions binding 120 name paths.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.FAST.Line.{i}.ATTETRds` · `fastLineATTETRds` | `unsignedInt`; JSON `integer`; min `0` | R | This parameter reports the attainable expected throughput expressed in Kbps as defined in clause 7.11.2.2 of ITU-T Recommendation G.997.2. Units: Kbps. `[Device:2.13]` |
 | `Device.FAST.Line.{i}.ATTETRus` · `fastLineATTETRus` | `unsignedInt`; JSON `integer`; min `0` | R | This parameter reports the attainable expected throughput expressed in Kbps as defined in clause 7.11.2.2 of ITU-T Recommendation G.997.2. Units: Kbps. `[Device:2.13]` |
@@ -646,7 +648,7 @@ That is 393 read references and 24 write references. The two dangling references
 | `Device.FAST.Line.{i}.Stats.PacketsSent` · `fastLineStatsPacketsSent` | `unsignedLong`; JSON `integer`; min `0` | R | The total number of packets transmitted out of the interface. `[Device:2.13]` |
 | `Device.FAST.Line.{i}.Stats.QuarterHourStart` · `fastLineStatsQuarterHourStart` | `unsignedInt`; JSON `integer`; min `0` | R | FAST-specific statistic. The Number of seconds since the beginning of the period used for collection of QuarterHour statistics. Units: seconds. `[Device:2.13]` |
 | `Device.FAST.Line.{i}.Stats.ShowtimeStart` · `fastLineStatsShowtimeStart` | `unsignedInt`; JSON `integer`; min `0` | R | FAST-specific statistic. The Number of seconds since the most recent DSL Showtime - the beginning of the period used for collection of Showtime statistics. Units: seconds. `[Device:2.13]` |
-| `fastLineStatsAll` · **60 paths**, from `Device.FAST.Line.{i}.Stats.Total.ErroredSecs` to `Device.FAST.Line.{i}.Stats.QuarterHour.SuccessTIGA` · every path is listed under Alternating path expansions | `unsignedInt`; JSON `integer`; min `0` | R | Total number of errored seconds as defined in ITU-T Rec. G.997.2. An errored second (ES) is declared if, during a 1-second interval, there are one or more crc anomalies, or one or more los defects, or one or more lor defects, or one or more lpr primitives. **Expansion — 60 paths:** the five interval segments (`Total`, `Showtime`, `LastShowtime`, `CurrentDay`, `QuarterHour`) × the twelve counters (`ErroredSecs`, `SeverelyErroredSecs`, `LOSS`, `LORS`, `UAS`, `RTXUC`, `RTXTX`, `SuccessBSW`, `SuccessSRA`, `SuccessFRA`, `SuccessRPA`, `SuccessTIGA`). `[Device:2.13]` |
+| `^Device\.FAST\.Line\.\d+\.Stats\.(Total\|Showtime\|LastShowtime\|CurrentDay\|QuarterHour)\.(ErroredSecs\|SeverelyErroredSecs\|LOSS\|LORS\|UAS\|RTXUC\|RTXTX\|SuccessBSW\|SuccessSRA\|SuccessFRA\|SuccessRPA\|SuccessTIGA)$` · `fastLineStatsAll` · **60 paths** · every path is listed under Alternating path expansions | `unsignedInt`; JSON `integer`; min `0` | R | Total number of errored seconds as defined in ITU-T Rec. G.997.2. An errored second (ES) is declared if, during a 1-second interval, there are one or more crc anomalies, or one or more los defects, or one or more lor defects, or one or more lpr primitives. **Expansion — 60 paths:** the five interval segments (`Total`, `Showtime`, `LastShowtime`, `CurrentDay`, `QuarterHour`) × the twelve counters (`ErroredSecs`, `SeverelyErroredSecs`, `LOSS`, `LORS`, `UAS`, `RTXUC`, `RTXTX`, `SuccessBSW`, `SuccessSRA`, `SuccessFRA`, `SuccessRPA`, `SuccessTIGA`). `[Device:2.13]` |
 | `Device.FAST.Line.{i}.Stats.TotalStart` · `fastLineStatsTotalStart` | `unsignedInt`; JSON `integer`; min `0` | R | FAST-specific statistic. The Number of seconds since the beginning of the period used for collection of Total statistics. Units: seconds. `[Device:2.13]` |
 | `Device.FAST.Line.{i}.Status` · `fastLineStatus` | `string`; `$ref` `lineStatusEnumList` | R | The current operational state of the FAST line (see TR-181i2). When Enable is false then this parameter SHOULD normally be Down (or NotPresent or Error if there is a fault condition on the interface). `[Device:2.13]` |
 | `Device.FAST.Line.{i}.SuccessFailureCause` · `fastLineSuccessFailureCause` | `unsignedInt`; JSON `integer`; `0`..`5` | R | The success failure cause of the initialization. An enumeration of the following integer values: \* 0: Successful \* 1: Configuration error. `[Device:2.13]` |
@@ -674,7 +676,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *36 parameter definitions, each binding one path.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.ATM.Link.{i}.AAL` · `atmLinkAAL` | `string`; JSON `string`; one of `AAL1`, `AAL2`, `AAL3`, `AAL4`, `AAL5` | R | Describes the ATM Adaptation Layer (AAL) currently in use on the PVC. `[Device:2.13]` |
 | `Device.ATM.Link.{i}.Alias` · `atmLinkAlias` | `string`; JSON `string`; maxLength `64` | R | A non-volatile handle used to label this ATM link instance for later reference. Where alias-based addressing is supported the value is non-empty and begins with a letter, a value the implementation rather than the management system assigns carries a `cpe-` prefix, the initial value the implementation chooses collides with no existing entry, and the implementation does not subsequently change it. Device:2.13 marks the parameter read-write; **this HAL exposes it read-only** — see Access divergences from Device:2.13. `[Device:2.13]` |
@@ -717,7 +719,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *9 parameter definitions, each binding one path.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.ATM.Diagnostics.F5Loopback.AverageResponseTime` · `atmDiagF5LoopbackAverageResponseTime` | `unsignedInt`; JSON `integer`; min `0` | R (optional) | Result parameter indicating the average response time in milliseconds over all repetitions with successful responses of the most recent ping test. Units: milliseconds. `[Device:2.13]` |
 | `Device.ATM.Diagnostics.F5Loopback.DiagnosticsState` · `atmDiagF5LoopbackDiagnosticsState` | `string`; JSON `string`; one of `None`, `Requested`, `Canceled`, `Complete`, `Error`, `Error_Internal`, `Error_Other` | RW (optional) | Indicates the availability of the results of the ATM OAM F5 loopback diagnostic and, when written, requests or cancels a run. Only `Requested` and `Canceled` are writable; the implementation sets `None`, `Complete`, `Error`, `Error_Internal` and `Error_Other`. The test's inputs are this object's `Interface`, `NumberOfRepetitions` and `Timeout`, all three writable here, and they must be set before or in the same request as `Requested`. On completion the value becomes `Complete` or one of the `Error` members, and while it is anything other than `Complete` the object's result parameters are indeterminate. Setting `Canceled`, or modifying another writable parameter of the object, returns it to `None`. `[Device:2.13]` |
@@ -733,7 +735,7 @@ That is 393 read references and 24 write references. The two dangling references
 
 *22 parameter definitions, each binding one path.*
 
-| TR-181 Parameter | Type and Constraint | Access | Description |
+| TR-181 Parameter · definition key | Type and Constraint | Access | Description |
 | --- | --- | --- | --- |
 | `Device.PTM.Link.{i}.Alias` · `ptmLinkAlias` | `string`; JSON `string`; maxLength `64` | R | A non-volatile handle used to label this PTM link instance for later reference. Where alias-based addressing is supported the value is non-empty and begins with a letter, a value the implementation rather than the management system assigns carries a `cpe-` prefix, the initial value the implementation chooses collides with no existing entry, and the implementation does not subsequently change it. Device:2.13 marks the parameter read-write; **this HAL exposes it read-only** — see Access divergences from Device:2.13. `[Device:2.13]` |
 | `Device.PTM.Link.{i}.Enable` · `ptmLinkEnable` | `boolean`; JSON `boolean`, otherwise unconstrained | RW | Enables or disables the link. This parameter is based on ifAdminStatus from RFC2863. `[Device:2.13]` |
@@ -830,9 +832,9 @@ groups the difference changes which values are representable.
 ### Alternating path expansions
 
 Three `name` expressions bind too many paths for a table cell: each is an anchored alternation of
-two groups that multiply out. Their `TR-181 Parameter` cells give the definition key, the path count
-and the first and last path; the tables below give all 120 paths, each followed by the exact `name`
-expression.
+two groups that multiply out. Their `TR-181 Parameter · definition key` cells give the exact `name`
+expression, the definition key and the path count; the tables below give all 120 paths, each followed
+by the exact `name` expression.
 
 #### bondingGroupStatsAllErrors
 
@@ -989,7 +991,7 @@ training progress (`Up`/`Initializing`/`EstablishingLink`/`NoSignal`/`Disabled`/
 Six workflows exercise **all eleven actions**. Every `json` block in this document is valid against
 `hal_schema/xdsl_hal_schema.json`; deliberately invalid excerpts are shown as plain `text`. The reply
 repeats the request's `reqId`, a decimal string of at most 63 digits (Transport and Protocol).
-Instances are shown as index `1`, which the schema's `\d+` accepts.
+Parameter instances are shown as index `1`, which the schema's `\d+` accepts.
 
 **Serialize submissions.** `reqId` correlates a reply with its request; it does not make concurrent
 use safe. `json_hal_client` adds a request to its pending list without the lock its readers hold,
@@ -1213,8 +1215,9 @@ so a caller cannot rely on its shape.
 
 Only a `Device.DSL.Line.{i}.` instance is deletable, because the `anyOf` resolves to
 `dslLineObjectName`. The acknowledgement is shown as `Not Supported`, the literal the transport itself
-returns when no action callback is registered for `deleteObject`; handle it as the action being
-unavailable, not as a statement about the parameter (Error Handling).
+returns when no action callback is registered for `deleteObject`. The same literal can follow a
+deletion the callback applied, so reconcile the instance list before retrying or treating deletion as
+unavailable (Error Handling).
 
 ### The shipped fixtures
 
@@ -1542,8 +1545,9 @@ contract in use — the duplicate touches an annotation only.*
 ### Transport delivery limits of json-hal-library
 
 These properties of `json-hal-library` at the pinned revision are not schema defects and cannot be
-fixed from this repository. Rows 1, 4 and 5 affect `RdkXdslManager` as a client; rows 1 to 4 also
-constrain a vendor server built on the same library. The two framing limits — a request must arrive
+fixed from this repository. Rows 1, 4 and 5 affect `RdkXdslManager` as a client, row 4 only in
+builds with `JSON_BLOCKING_SUBSCRIBE_EVENT`; all five rows also constrain a vendor server built on
+the same library. The two framing limits — a request must arrive
 in a single read, and a reply is reassembled only across reads that fill the buffer — are described
 under Transport and Protocol.
 
@@ -1552,8 +1556,8 @@ under Transport and Protocol.
 | 1 | Both send loops can return `RETURN_OK` with bytes unsent, and treat `EINTR` or `EAGAIN` as fatal | A successful send is not a delivered message |
 | 2 | `accept` adds connections with no limit, no allocation check and no `FD_SETSIZE` check | Concurrent clients are unbounded, and an allocation failure or a descriptor at or above `FD_SETSIZE` corrupts server state |
 | 3 | Subscriptions are appended without de-duplication or limit, and publication sends to every recipient while holding the subscription lock | A repeated subscribe doubles delivery, and one blocked recipient stalls every subscription operation and every delivery |
-| 4 | The client releases an event that lacks an `id` field and then uses and releases it again; two server helpers release objects their callers release again | Use after free and double free (`CWE-416`, `CWE-415`), reachable from a malformed message |
-| 5 | The client configuration is read with one `fread` into a 256-byte buffer that must fill, and the schema path is copied into a 256-byte field with `strcpy` | A configuration file shorter than 256 bytes fails to load, one of exactly 256 bytes is parsed unterminated, and a longer schema path overflows the field |
+| 4 | In builds of `json-hal-library` with `JSON_BLOCKING_SUBSCRIBE_EVENT`, the client releases a `publishEvent` that lacks `reqId`, may use it for a further matching subscription, and releases it again; two server helpers release objects their callers release again | Use after free and double free (`CWE-416`, `CWE-415`), reachable from a malformed message |
+| 5 | `json_hal_load_config`, which `json_hal_client_init` and `json_hal_server_init` both call, reads the configuration with one `fread` into a zero-initialised 256-byte buffer, ignores the read result and parses the buffer; `strcpy` copies the schema path into the 256-byte `hal_schema_path` field | A file of 256 bytes or more is parsed without a terminating NUL and is read no further than its first 256 bytes, and a schema path of 256 characters or more overflows the field |
 
 ## Error Handling
 
@@ -1572,7 +1576,7 @@ handler may return any of the four. The two origins are indistinguishable on the
 | `Success` | A handler ran and reported success. | Proceed. Where a written value must be confirmed, read the parameter back. |
 | `Failed` | A registered action callback reported failure, or the vendor returned the literal. No reason is carried. | Treat as a runtime failure. Before resending a `setParameters`, `deleteObject` or `subscribeEvent`, read the state back (Retry behaviour on the write path). |
 | `Invalid Argument` | Returned only by vendor code: the transport has no constant for it and never emits it. | Do not resend unchanged. Check each entry against its definition in this document and correct the request. Compare the literal string. |
-| `Not Supported` | The transport found no callback or handler, or its own reply failed validation; or the vendor does not support the action or parameter. | Do not retry. Treat the action or parameter as unavailable on this server; this is the expected reply to `deleteObject` where the vendor does not implement deletion. |
+| `Not Supported` | The transport found no callback or handler; or the action callback ran and returned success, then a server built with `JSON_SCHEMA_VALIDATION_ENABLED` found its reply invalid and sent this instead, so the action may have taken effect; or the vendor returned the literal. | Do not conclude from this status alone that the action or parameter is unsupported. After `setParameters`, `deleteObject` or `subscribeEvent`, reconcile the affected state (Retry behaviour on the write path) before retrying or marking the capability unavailable. This is the expected reply to `deleteObject` where the vendor registers no deletion callback. |
 
 **One status covers the whole `params` array.** Send one parameter per `setParameters` where
 per-parameter certainty is needed.
@@ -1616,16 +1620,19 @@ equality with the four literals where the distinction matters.
 
 ### Blocking and timeouts
 
-Both synchronous calls are timed by the transport's 250 ms tick, `LOOP_TIMEOUT`. The default window,
-`SEND_MSG_TICKER_TIMEOUT`, is 40 ticks, about 10 s.
+Both synchronous calls count their timeout in ticks, not wall-clock time. A tick is one pass of the
+client receive loop, which waits up to `LOOP_TIMEOUT`, 250 ms, and ends early when data arrives. The
+default budget, `SEND_MSG_TICKER_TIMEOUT`, is 40 ticks, about 10 s while the loop is idle.
 
-| Call | Window |
+| Call | Tick budget |
 | --- | --- |
-| `json_hal_client_send_and_get_reply` | The default 40 ticks, about 10 s. |
-| `json_hal_client_send_and_get_reply_with_timeout` | The requested timeout in ticks, silently clamped to between 40 ticks (about 10 s) and 480 ticks (120 s). |
+| `json_hal_client_send_and_get_reply` | The default 40 ticks, about 10 s while idle. |
+| `json_hal_client_send_and_get_reply_with_timeout` | The requested timeout in seconds, converted to ticks and silently clamped to between 40 ticks and 480 ticks, about 10 s and 120 s while idle. |
 
-A deadline shorter than about 10 s cannot be enforced through this interface, and the return value
-does not report a clamp.
+Incoming data shortens the wall-clock time a budget takes, and a lost server connection lengthens it,
+because each reconnect attempt is a one-second pass. A budget below 40 ticks cannot be requested, and
+the return value does not report a clamp. A caller that needs a hard deadline enforces it outside this
+interface.
 
 **A read that fills the 16384-byte receive buffer suspends every deadline.** The tick sweep that
 expires requests is skipped while the reassembly buffer holds data, and the caller's own wait is
@@ -1669,9 +1676,9 @@ of the duplicated root members (Contract Defects 12).
 | `reqId` as a `JSON` number, or `null` | invalid — `reqId` is a string matching `^[0-9]+$` | every action |
 | `module` other than `xdslhal`, or `version` other than `0.0.1` | invalid | every action |
 | `action` outside the eleven-member enumeration | invalid | every action |
-| `params` omitted, or present but not an array | invalid | the eight bound actions |
-| `params` present but an empty array | invalid — `minItems` 1 | the eight bound actions |
-| two identical entries in one `params` array | invalid — `uniqueItems` | the eight bound actions |
+| `params` omitted, or present but not an array | invalid | the six actions that bind `params` |
+| `params` present but an empty array | invalid — `minItems` 1 | the six actions that bind `params` |
+| two identical entries in one `params` array | invalid — `uniqueItems` | the six actions that bind `params` |
 | two entries naming the **same parameter** but differing anywhere else | **accepted** — `uniqueItems` compares whole entry objects, not the `name` member | `setParameters`, `getParametersResponse`, `subscribeEvent`, `publishEvent` |
 | two entries naming the same parameter where the entry carries nothing but `name` | invalid — `uniqueItems`, because two such entries are necessarily byte-identical | `getParameters`, `deleteObject` |
 | an unknown member at the **root** of the message | **accepted and left unvalidated** — the root sets no `additionalProperties: false` | every action |
@@ -1795,9 +1802,10 @@ the non-recursive `gm_event_tracking_lock` held.
 | A callback that subscribes or terminates deadlocks the receive thread | `json_hal_client_subscribe_event` and `json_hal_client_terminate` take the same lock | Never call back into the client from a callback |
 | The payload is borrowed | The callback receives a `const char *` and a length into the transport's buffer | Copy what is needed before returning |
 
-**Validate, copy, hand off, return.** Validate the message against the schema, copy what is needed,
-post it to a queue that `RdkXdslManager`'s own thread drains, and return promptly. If no further
-events arrive after one is delivered, check that the callback returned.
+**Validate, copy, hand off, return.** Apply the event checks below (Inbound event values are used
+without validation), copy what is needed, post it to a queue that `RdkXdslManager`'s own thread
+drains, and return promptly. If no further events arrive after one is delivered, check that the
+callback returned.
 
 ### A helper's success is not the vendor's acceptance
 
@@ -1834,13 +1842,13 @@ firing does not by itself mean the subscribed parameter changed.
 ### Inbound event values are used without validation
 
 `RdkXdslManager`'s event callback forwards a received value into its own state without validating
-the envelope or the value against the schema, and the transport validates no inbound message.
-Together with prefix matching, a malformed, out-of-enumeration or misattributed event is accepted and
-acted upon.
+the envelope or the value against the schema, and no transport check precedes it (Error Handling,
+Validation boundary). Together with prefix matching, a malformed, out-of-enumeration or misattributed
+event is accepted and acted upon.
 
-**Validate every inbound `publishEvent` against `/etc/rdk/schemas/xdsl_hal_schema.json`, and match its
-name exactly to a subscription, before using its value**; for the two subscribable parameters that
-means checking the value against `linkStatusEnumList`.
+**Before using an event's value, validate the `publishEvent` against
+`/etc/rdk/schemas/xdsl_hal_schema.json`, including the value against `linkStatusEnumList`, and apply
+the exact-name comparison above.**
 
 ## Source References
 
