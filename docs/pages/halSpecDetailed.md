@@ -100,9 +100,6 @@ read, and parses the accumulated text only up to its first NUL. A fragmented rep
 the parser truncated at any size, and a read that exactly fills the buffer leaves the reply unparsed,
 and the waiting call blocked without a deadline, until more data arrives (Error Handling).
 
-Both diagrams in this document are fenced `mermaid` blocks: they render on GitHub, and the generated
-Doxygen site shows their source text.
-
 Every bound action has the same request/response shape: `RdkXdslManager` sends an envelope, the vendor
 JSON HAL server answers with the matching `reqId`, and `RdkXdslManager` reads the payload or the status
 from the reply.
@@ -119,13 +116,13 @@ sequenceDiagram
     Mgr->>Cli: json_hal_client_get_request_header("getParameters")
     Mgr->>Cli: json_hal_client_send_and_get_reply(request, &reply)
     Cli->>Srv: module xdslhal, version 0.0.1, action getParameters, reqId 1001, params
-    Srv->>Cli: action getParametersResponse, reqId 1001, params with type and value
-    Cli->>Mgr: reply matched by reqId, or RETURN_ERR once the nominal 40-tick budget expires
+    Srv-->>Cli: action getParametersResponse, reqId 1001, params with type and value
+    Cli-->>Mgr: reply matched by reqId, or RETURN_ERR once the nominal 40-tick budget expires
     Mgr->>Cli: json_hal_get_param(reply, index, GET_RESPONSE_MESSAGE, &param)
     Note over Mgr: a response carries params, so it is read by count and index
     Mgr->>Cli: json_hal_client_send_and_get_reply(setParameters, &reply)
     Cli->>Srv: action setParameters, reqId 1002, params with name, type, value
-    Srv->>Cli: action result, reqId 1002, Result.Status
+    Srv-->>Cli: action result, reqId 1002, Result.Status
     Mgr->>Cli: json_hal_get_result_status(reply, &status)
     Note over Mgr: Result.Status exists only under action result
 ```
@@ -741,7 +738,7 @@ That is 393 read references and 24 write references. The two dangling references
 | `Device.PTM.Link.{i}.Enable` · `ptmLinkEnable` | `boolean`; JSON `boolean` | Read-Write | Enables or disables the link. This parameter is based on ifAdminStatus from RFC2863. `[Device:2.13]` |
 | `Device.PTM.Link.{i}.LastChange` · `ptmLinkLastChange` | `unsignedInt`; JSON `integer`; minimum 0 | Read-Only | The accumulated time in seconds since the link entered its current operational state. Units: seconds. `[Device:2.13]` |
 | `Device.PTM.Link.{i}.LowerLayers` · `ptmLinkLowerLayers` | `string`; JSON `string`; maxLength 1024 | Read-Only | Comma-separated list. an interface object that is stacked immediately below this interface object See TR-181i2. `[Device:2.13]` |
-| `Device.PTM.Link.{i}.MACAddress` · `ptmLinkMACAddress` | `string`; JSON `string`; minLength 17; maxLength 17; pattern `^([0-9A-Fa-f][0-9A-Fa-f]:){5}([0-9A-Fa-f][0-9A-Fa-f])$` | Read-Only | The MAC Address of the interface. Note: This is not necessarily the same as the Ethernet header source or destination MAC address, which is associated with the IP interface and is modeled via the {{param\|.Ethernet.Link.{i}.MACAddress}} parameter. `[Device:2.13]` |
+| `Device.PTM.Link.{i}.MACAddress` · `ptmLinkMACAddress` | `string`; JSON `string`; minLength 17; maxLength 17; pattern `^([0-9A-Fa-f][0-9A-Fa-f]:){5}([0-9A-Fa-f][0-9A-Fa-f])$` | Read-Only | The MAC Address of the interface. Note: This is not necessarily the same as the Ethernet header source or destination MAC address, which is associated with the IP interface and is modeled via the `Device.Ethernet.Link.{i}.MACAddress` parameter. `[Device:2.13]` |
 | `Device.PTM.Link.{i}.Name` · `ptmLinkName` | `string`; JSON `string`; maxLength 64 | Read-Write | The textual name of the link as assigned by the CPE. `[Device:2.13]` |
 | `Device.PTM.Link.{i}.Stats.BroadcastPacketsReceived` · `ptmLinkStatsBroadcastPacketsReceived` | `unsignedLong`; JSON `integer`; minimum 0 | Read-Only | The total number of received packets, delivered by this layer to a higher layer, which were addressed to a broadcast address at this layer. `[Device:2.13]` |
 | `Device.PTM.Link.{i}.Stats.BroadcastPacketsSent` · `ptmLinkStatsBroadcastPacketsSent` | `unsignedLong`; JSON `integer`; minimum 0 | Read-Only | The total number of packets that higher-level protocols requested for transmission and which were addressed to a broadcast address at this layer, including those that were discarded or not sent. `[Device:2.13]` |
@@ -1781,16 +1778,16 @@ sequenceDiagram
     participant Srv as Vendor JSON HAL Server
     Mgr->>Cli: json_hal_client_subscribe_event(eventcb, "Device.DSL.Line.1.LinkStatus", "onChange")
     Cli->>Srv: action subscribeEvent, reqId 1004, params name plus notificationType
-    Srv->>Cli: action result, reqId 1004, Result.Status Success
+    Srv-->>Cli: action result, reqId 1004, Result.Status Success
     Note over Cli: Result.Status is never read, so the helper returns success either way
-    Cli->>Mgr: RETURN_OK
+    Cli-->>Mgr: RETURN_OK
     Srv->>Cli: action publishEvent, reqId 1005, params name plus value NoSignal
     Note over Cli: event name matched by prefix, not equality
     Cli->>Mgr: eventcb(msg, len) on the receive thread, gm_event_tracking_lock held
     Note over Mgr: value forwarded to RdkXdslManager state without schema validation
     Mgr->>Cli: json_hal_client_send_and_get_reply(getActiveSubscriptions, &reply)
     Cli->>Srv: action getActiveSubscriptions, reqId 1006, bare envelope
-    Srv->>Cli: action getActiveSubscriptionsResponse, reqId 1006, no list member defined
+    Srv-->>Cli: action getActiveSubscriptionsResponse, reqId 1006, no list member defined
 ```
 
 ### Delivery is on the sole receive thread, with the event lock held

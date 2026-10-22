@@ -49,9 +49,6 @@ The schema defines parameters under four TR-181 families — `Device.DSL`, `Devi
 [halSpecDetailed.md](halSpecDetailed.md), which is to this schema what inline Doxygen is to a C
 header.
 
-Diagrams are fenced Mermaid, which renders on GitHub; the generated Doxygen site shows their source
-text instead.
-
 ## Optional Components
 
 There is no schema or configuration variant: the repository ships one schema file and one client
@@ -566,8 +563,8 @@ sequenceDiagram
     Note over Cli: reply consumed and released inside the call
     Cli-->>Mgr: RETURN_OK, and no reply object
     Note over Srv: line state changes later
-    Srv-->>Cli: publishEvent, unsolicited
-    Cli-->>Mgr: event callback on the client socket thread
+    Srv->>Cli: publishEvent, unsolicited
+    Cli->>Mgr: event callback on the client socket thread
 ```
 
 Two details in the diagram are contractual:
@@ -605,9 +602,6 @@ stateDiagram-v2
     state "Up" as Up
     state "Error" as Error
     note right of Disabled : Six reported values of linkStatusEnumList.
-    note right of NoSignal : The schema constrains the value set, not the order.
-    note right of Up : Any value may follow any other.
-    note right of Error : Each change is delivered by publishEvent.
 ```
 
 **Value Order:** No edge is drawn, because the schema constrains the set of values, not their order.
